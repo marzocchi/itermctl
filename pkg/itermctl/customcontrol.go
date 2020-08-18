@@ -65,6 +65,8 @@ func MonitorCustomControlSequences(ctx context.Context, client *Client, identity
 				continue
 			}
 
+			log.Debugf("custom control sequence monitor: found match: %s", matches)
+
 			notifications <- CustomControlSequenceNotification{
 				Notification: ccsNotification,
 				Matches:      matches,

@@ -391,6 +391,7 @@ func getArgs(v interface{}) (arguments []*iterm2.RPCRegistrationRequest_RPCArgum
 func handleInvocations(client *Client, callback RpcFunc, invocations <-chan *iterm2.Notification) {
 	go func() {
 		for invocation := range invocations {
+			rpcName := invocation.GetServerOriginatedRpcNotification().GetRpc().GetName()
 			result := invoke(callback, invocation.GetServerOriginatedRpcNotification())
 
 			msg := &iterm2.ClientOriginatedMessage{
@@ -402,7 +403,7 @@ func handleInvocations(client *Client, callback RpcFunc, invocations <-chan *ite
 
 			err := client.Send(msg)
 			if err != nil {
-				logrus.Errorf("RpcFunc send: %s", err)
+				logrus.Errorf("rpc: send return value of %s: %s", rpcName, err)
 			}
 		}
 	}()

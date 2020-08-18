@@ -17,6 +17,10 @@ func TestRegisterCallback(t *testing.T) {
 	defer cancel()
 
 	conn, err := itermctl.GetCredentialsAndConnect(test.AppName(t), true)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	defer conn.Close()
 	client := itermctl.NewClient(conn)
 	app := itermctl.NewApp(client)
@@ -51,6 +55,10 @@ func TestRegisterCallback_WithError(t *testing.T) {
 	defer cancel()
 
 	conn, err := itermctl.GetCredentialsAndConnect(test.AppName(t), true)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	defer conn.Close()
 	client := itermctl.NewClient(conn)
 
@@ -88,6 +96,10 @@ func TestRegisterCallback_WithArguments(t *testing.T) {
 	defer cancel()
 
 	conn, err := itermctl.GetCredentialsAndConnect(test.AppName(t), true)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	defer conn.Close()
 	client := itermctl.NewClient(conn)
 

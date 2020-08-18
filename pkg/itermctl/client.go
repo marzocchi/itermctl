@@ -22,7 +22,7 @@ const (
 )
 
 var (
-	Socket                           = "~/Library/ApplicationSupport/iTerm2/private/socket"
+	Socket                           = "~/Library/Application Support/iTerm2/private/socket"
 	Subprotocol                      = "api.iterm2.com"
 	AppName                          = "itermctl"
 	LibraryVersion                   = "itermctl 0.0.1"

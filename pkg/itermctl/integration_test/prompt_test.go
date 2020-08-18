@@ -14,15 +14,16 @@ import (
 
 func TestPromptMonitor(t *testing.T) {
 	conn, err := itermctl.GetCredentialsAndConnect(test.AppName(t), true)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	defer conn.Close()
 	client := itermctl.NewClient(conn)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
 	app := itermctl.NewApp(client)
 
-	promptNotifications, err := itermctl.MonitorPrompts(ctx, client)
+	promptNotifications, err := itermctl.MonitorPrompts(context.Background(), client)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,8 +74,8 @@ func collectPrompts(src <-chan *iterm2.PromptNotification, max int, t *testing.T
 
 	for {
 		select {
-		case <-time.After(2 * time.Second):
-			t.Fatal("timed out")
+		case <-time.After(10 * time.Second):
+			t.Fatal("timed out while waiting for a prompt")
 		case prompt := <-src:
 			prompts = append(prompts, prompt)
 			if len(prompts) == max {

@@ -37,7 +37,7 @@ func NewWebsocket(dialFunc func() (net.Conn, error), serviceUrl url.URL, subprot
 
 	dialer := &websocket.Dialer{
 		Proxy:            http.ProxyFromEnvironment,
-		HandshakeTimeout: 5 * time.Second,
+		HandshakeTimeout: 7 * time.Second,
 		NetDial: func(network, addr string) (net.Conn, error) {
 			return dialFunc()
 		},
@@ -45,8 +45,10 @@ func NewWebsocket(dialFunc func() (net.Conn, error), serviceUrl url.URL, subprot
 
 	err := ws.connect(dialer)
 	if err != nil {
-		return nil, fmt.Errorf("websocket: %w", err)
+		return nil, fmt.Errorf("websocket: connect: %w", err)
 	}
+
+	log.Debug("websocket: connected")
 
 	return ws, nil
 }
@@ -103,7 +105,7 @@ func (ws *Websocket) Responses() <-chan *iterm2.ServerOriginatedMessage {
 		for {
 			_, data, err := ws.conn.ReadMessage()
 			if err != nil {
-				log.Errorf("websocket: error reading responses: %s", err)
+				log.Errorf("websocket: error reading message: %s", err)
 				break
 			}
 

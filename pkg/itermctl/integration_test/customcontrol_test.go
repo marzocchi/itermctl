@@ -15,6 +15,10 @@ import (
 
 func TestCustomControlSequenceMonitor(t *testing.T) {
 	conn, err := itermctl.GetCredentialsAndConnect(test.AppName(t), true)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	defer conn.Close()
 	client := itermctl.NewClient(conn)
 

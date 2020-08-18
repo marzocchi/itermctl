@@ -14,6 +14,10 @@ func TestApp_InvokeFunction(t *testing.T) {
 	t.Parallel()
 
 	conn, err := itermctl.GetCredentialsAndConnect(test.AppName(t), true)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	defer conn.Close()
 	client := itermctl.NewClient(conn)
 	app := itermctl.NewApp(client)
@@ -33,7 +37,7 @@ func TestApp_InvokeFunction(t *testing.T) {
 		},
 	}
 
-	itermctl.RegisterRpc(context.TODO(), client, rpc)
+	itermctl.RegisterRpc(context.Background(), client, rpc)
 
 	var result string
 	err = app.InvokeFunction(fmt.Sprintf("rpc_test_succeeding_func(%s: %q)", "foo", args.Foo), &result)
@@ -50,7 +54,11 @@ func TestApp_InvokeFunction_WithError(t *testing.T) {
 	t.Parallel()
 
 	conn, err := itermctl.GetCredentialsAndConnect(test.AppName(t), true)
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer conn.Close()
+
 	client := itermctl.NewClient(conn)
 
 	app := itermctl.NewApp(client)
@@ -86,7 +94,12 @@ func TestApp_InvokeFunction_WithError(t *testing.T) {
 }
 
 func TestApp_CreateTab_CloseTab(t *testing.T) {
+	t.Parallel()
+
 	conn, err := itermctl.GetCredentialsAndConnect(test.AppName(t), true)
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer conn.Close()
 	client := itermctl.NewClient(conn)
 

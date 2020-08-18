@@ -9,17 +9,41 @@ import (
 	"mrz.io/itermctl/pkg/itermctl/internal/seq"
 	"mrz.io/itermctl/pkg/itermctl/internal/test"
 	iterm2 "mrz.io/itermctl/pkg/itermctl/proto"
+	"os"
 	"testing"
 	"time"
 )
 
+func TestMain(m *testing.M) {
+	err := itermctl.AuthDisabled()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "auth must be disabled to run these tests\n")
+		fmt.Fprintf(os.Stderr, "error is: %s\n", err)
+		os.Exit(1)
+	}
+
+	itermctl.WaitResponseTimeout = 15 * time.Second
+
+	ctx, cancel := context.WithCancel(context.Background())
+	test.StartTakingScreenshots(ctx, "/Users/runner/work/itermctl/itermctl/artifacts")
+
+	code := m.Run()
+	cancel()
+
+	os.Exit(code)
+}
+
 func TestClient_CloseConnectionDuringGetResponse(t *testing.T) {
 	conn, err := itermctl.GetCredentialsAndConnect(test.AppName(t), true)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	client := itermctl.NewClient(conn)
 
 	funcName := "itermctl_test_sleep_func"
 
-	itermctl.RegisterRpc(context.TODO(), client, itermctl.Rpc{
+	itermctl.RegisterRpc(context.Background(), client, itermctl.Rpc{
 		Name: funcName,
 		Args: nil,
 		F: func(args *itermctl.RpcInvocation) (interface{}, error) {
@@ -40,7 +64,7 @@ func TestClient_CloseConnectionDuringGetResponse(t *testing.T) {
 		},
 	}
 
-	respCh, err := client.Request(context.TODO(), req)
+	respCh, err := client.Request(context.Background(), req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,6 +82,9 @@ func TestClient_CloseConnectionDuringGetResponse(t *testing.T) {
 
 func TestClient_Subscribe(t *testing.T) {
 	conn, err := itermctl.GetCredentialsAndConnect(test.AppName(t), true)
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer conn.Close()
 	client := itermctl.NewClient(conn)
 

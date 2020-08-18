@@ -12,6 +12,9 @@ import (
 
 func TestNewSessionMonitor(t *testing.T) {
 	conn, err := itermctl.GetCredentialsAndConnect(test.AppName(t), true)
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer conn.Close()
 	client := itermctl.NewClient(conn)
 
@@ -41,9 +44,12 @@ func TestTerminateSessionMonitor(t *testing.T) {
 	t.Parallel()
 
 	conn, err := itermctl.GetCredentialsAndConnect(test.AppName(t), true)
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer conn.Close()
-	client := itermctl.NewClient(conn)
 
+	client := itermctl.NewClient(conn)
 	closedSessions, err := itermctl.MonitorSessionsTermination(nil, client)
 	if err != nil {
 		t.Fatal(err)
