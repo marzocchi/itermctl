@@ -1,0 +1,31 @@
+on: [pull_request]
+
+jobs:
+  tests:
+    name: All Tests
+    runs-on: macos-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v2
+
+      - name: Download iTerm2
+        run: |
+          iterm_dir="$HOME/Library/Application Support/iTerm2"
+          magic_file_path="$iterm_dir/disable-automation-auth"
+
+          mkdir -p "$iterm_dir"
+          ./.github/workflows/disable-auth.py "$magic_file_path"
+          sudo chown root "$magic_file_path"
+
+          defaults write com.googlecode.iterm2 NoSyncEnableAPIServer 1
+
+          tmp_zip=$(mktemp -u iterm.zip.XXXXXXX)
+          curl https://iterm2.com/downloads/beta/iTerm2-3_4_0beta4.zip > "$tmp_zip"
+          unzip "$tmp_zip"
+          find . -type f
+          open iTerm.app
+
+      - name: Run tests
+        run: |
+          go test -timeout 60s -race -count=1 -v -tags test_with_iterm mrz.io/itermctl/pkg/itermctl/...
