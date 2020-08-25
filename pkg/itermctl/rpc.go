@@ -2,26 +2,25 @@ package itermctl
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"github.com/sirupsen/logrus"
-	"mrz.io/itermctl/pkg/itermctl/internal/seq"
+	"mrz.io/itermctl/pkg/itermctl/internal/json"
 	"mrz.io/itermctl/pkg/itermctl/proto"
 	"reflect"
 	"strings"
 )
 
-var ErrNoKnobs = fmt.Errorf("no argument named 'knobs'")
-
-// Rpc is a function that iTerm2 can invoke in response to some action, such as a keypress or a trigger, after it has
-// been registered with iTerm2 using RegisterRpc.
+// Rpc is a function that can be registered with iTerm2 using RegisterRpc and will be invoked in response to some
+// action or event, such as a keypress or a trigger.
 type Rpc struct {
 	// Name is the function's name and makes up the function signature, together with Args.
 	Name string
 
 	// Args define the function's expected arguments, given as a struct or *struct. Only fields of type bool, string and
-	// float64 are considered, while fields of other types will be ignored. Each field can also be annotated to provide
-	// the argument's name and a default value as a reference to an iTerm2's built-in variable.
+	// float64 are considered, while fields of other types will be ignored. Each field can also be annotated with
+	// arg.name and arg.ref to provide the argument's name and a default value as a reference to an iTerm2's built-in
+	// variable. If there's no arg.name tag, the value of the json tag or the struct field in lower case are used as a
+	// fallback.
 	// See https://www.iterm2.com/documentation-variables.html.
 	Args interface{}
 
@@ -31,6 +30,12 @@ type Rpc struct {
 
 // RpcFunc is the implementation of an Rpc function.
 type RpcFunc func(invocation *RpcInvocation) (interface{}, error)
+
+type ClickArgs struct {
+	SessionId string `arg.name:"session_id"`
+}
+
+type statusBarComponentIdentifierValueKey string
 
 // See https://iterm2.com/python-api/statusbar.html.
 type StatusBarComponent struct {
@@ -58,6 +63,8 @@ type StatusBarComponent struct {
 
 	// Rpc is the implementation of the component.
 	Rpc Rpc
+
+	OnClick RpcFunc
 }
 
 // TitleProvider is an Rpc that gets called to compute the title of a session, as frequently as iTerm2 deems necessary,
@@ -76,12 +83,25 @@ type TitleProvider struct {
 
 // RpcInvocation contains all the arguments of the current invocation of a RpcFunc.
 type RpcInvocation struct {
-	args map[string]string
+	requestId string
+	conn      *Connection
+	name      string
+	args      map[string]string
+
+	statusBarComponentIdentifier string
+}
+
+// Name gives the name of used by iTerm2 to invoke this callback's parent Rpc.
+func (inv *RpcInvocation) Name() string {
+	return inv.name
 }
 
 // Args unmarshalls the invocation arguments into the given *struct, usually the same one used as the Rpc's arguments.
 func (inv *RpcInvocation) Args(target interface{}) error {
-	targetValue := reflect.ValueOf(target).Elem()
+	targetValue := reflect.ValueOf(target)
+	if targetValue.Kind() == reflect.Ptr {
+		targetValue = targetValue.Elem()
+	}
 	targetType := targetValue.Type()
 
 	if targetValue.NumField() < 1 {
@@ -106,19 +126,19 @@ func (inv *RpcInvocation) Args(target interface{}) error {
 		switch {
 		case f.Kind() == reflect.Bool:
 			var value bool
-			if err := json.Unmarshal([]byte(argJsonValue), &value); err != nil {
+			if err := json.UnmarshalString(argJsonValue, &value); err != nil {
 				return fmt.Errorf("cannot unmarshal %q: %w", name, err)
 			}
 			f.SetBool(value)
 		case f.Kind() == reflect.String:
 			var value string
-			if err := json.Unmarshal([]byte(argJsonValue), &value); err != nil {
+			if err := json.UnmarshalString(argJsonValue, &value); err != nil {
 				return fmt.Errorf("cannot unmarshal %q: %w", name, err)
 			}
 			f.SetString(value)
 		case f.Kind() == reflect.Float64:
 			var value float64
-			if err := json.Unmarshal([]byte(argJsonValue), &value); err != nil {
+			if err := json.UnmarshalString(argJsonValue, &value); err != nil {
 				return fmt.Errorf("cannot unmarshal %q: %w", name, err)
 			}
 			f.SetFloat(value)
@@ -128,36 +148,201 @@ func (inv *RpcInvocation) Args(target interface{}) error {
 }
 
 // Knobs unmarshalls the invocation's knobs into the given *struct, usually the same one used as the
-// StatusBarComponent's knobs. Returns ErrNoKnobs when the 'knobs' argument is not found in this invocation (because
-// the Rpc was not registered as a StatusBarComponent).
+// StatusBarComponent's knobs. Returns ErrNoKnobs when the 'knobs' argument is not found in this invocation (which
+// usually means the Rpc was not registered as a StatusBarComponent).
 func (inv *RpcInvocation) Knobs(target interface{}) error {
 	knobs, ok := inv.args["knobs"]
 	if !ok {
 		return ErrNoKnobs
 	}
 
-	var intermediate string
-	if err := json.Unmarshal([]byte(knobs), &intermediate); err != nil {
-		return fmt.Errorf("knobs: %w", err)
-	}
-
-	if err := json.Unmarshal([]byte(intermediate), target); err != nil {
+	if err := json.UnmarshalTwice(knobs, target); err != nil {
 		return fmt.Errorf("knobs: %w", err)
 	}
 
 	return nil
 }
 
-// RegisterRpc registers the Rpc, invokes its callback when requested by iTerm2 and sends back its return value.
-// Registration lasts until the given context is canceled, or the underlying connection shuts down.
-func RegisterRpc(ctx context.Context, client *Client, rpc Rpc) error {
-	args, defaults := getArgs(rpc.Args)
+func (inv *RpcInvocation) OpenPopover(html string, width, height int32) error {
+	args := ClickArgs{}
+	if err := inv.Args(&args); err != nil {
+		return fmt.Errorf("popover: can't get session ID: %w", err)
+	}
 
-	subscribe := true
+	msg := &iterm2.ClientOriginatedMessage{
+		Submessage: &iterm2.ClientOriginatedMessage_StatusBarComponentRequest{
+			StatusBarComponentRequest: &iterm2.StatusBarComponentRequest{
+				Request: &iterm2.StatusBarComponentRequest_OpenPopover_{
+					OpenPopover: &iterm2.StatusBarComponentRequest_OpenPopover{
+						SessionId: &args.SessionId,
+						Html:      &html,
+						Size: &iterm2.Size{
+							Width:  &width,
+							Height: &height,
+						},
+					},
+				},
+				Identifier: &inv.statusBarComponentIdentifier,
+			},
+		},
+	}
+
+	if err := inv.conn.Send(msg); err != nil {
+		return fmt.Errorf("popover: %w", err)
+	}
+	return nil
+}
+
+func acceptRpc(rpc Rpc) AcceptFunc {
+	return func(msg *iterm2.ServerOriginatedMessage) bool {
+		if notification := msg.GetNotification(); notification != nil {
+			if rpcNotification := notification.GetServerOriginatedRpcNotification(); rpcNotification != nil {
+				if rpcNotification.GetRpc() != nil {
+					return rpcNotification.GetRpc().GetName() == rpc.Name
+				}
+			}
+		}
+		return false
+	}
+}
+
+// RegisterRpc registers the Rpc, invokes its callback when requested by iTerm2 and writes back to iTerm2 the callback's
+// return value or return error. Registration lasts until the context is canceled, or the underlying connection is
+// closed.
+// See https://www.iterm2.com/python-api/registration.html.
+func (conn *Connection) RegisterRpc(ctx context.Context, rpc Rpc) error {
 	role := iterm2.RPCRegistrationRequest_GENERIC
+
+	req := newRegistrationRequest(role, rpc)
+
+	recv, err := conn.Subscribe(ctx, req)
+	if err != nil {
+		return fmt.Errorf("register rpc: %s", err)
+	}
+
+	recv.name = fmt.Sprintf("receive rpc: %s", rpc.Name)
+	recv.SetAcceptFunc(acceptRpc(rpc))
+
+	go func() {
+		for msg := range recv.Ch() {
+			rpcNotification := msg.GetNotification().GetServerOriginatedRpcNotification()
+			args := getInvocationArguments(ctx, conn, rpcNotification)
+			invoke(conn, rpc, args)
+		}
+	}()
+
+	return nil
+}
+
+// RegisterStatusBarComponent registers a Status Bar Component. Registration lasts until the context is canceled or
+// the connection is closed.
+// See https://www.iterm2.com/python-api/registration.html#iterm2.registration.StatusBarRPC.
+func (conn *Connection) RegisterStatusBarComponent(ctx context.Context, cmp StatusBarComponent) error {
+	var cadence *float32
+	knobs := "knobs"
+
+	if cmp.UpdateCadence > 0 {
+		cadence = &cmp.UpdateCadence
+	}
+
+	req := newRegistrationRequest(iterm2.RPCRegistrationRequest_STATUS_BAR_COMPONENT, cmp.Rpc)
+
+	args := req.GetRpcRegistrationRequest().GetArguments()
+	args = append(args, &iterm2.RPCRegistrationRequest_RPCArgumentSignature{Name: &knobs})
+	req.GetRpcRegistrationRequest().Arguments = args
+
+	req.GetRpcRegistrationRequest().RoleSpecificAttributes = &iterm2.RPCRegistrationRequest_StatusBarComponentAttributes_{
+		StatusBarComponentAttributes: &iterm2.RPCRegistrationRequest_StatusBarComponentAttributes{
+			ShortDescription:    &cmp.ShortDescription,
+			DetailedDescription: &cmp.Description,
+			Exemplar:            &cmp.Exemplar,
+			UniqueIdentifier:    &cmp.Identifier,
+			UpdateCadence:       cadence,
+			Knobs:               getKnobs(cmp.Knobs),
+			Icons:               nil,
+		},
+	}
+
+	recv, err := conn.Subscribe(ctx, req)
+	if err != nil {
+		return fmt.Errorf("register status bar component: %w", err)
+	}
+
+	recv.name = fmt.Sprintf("receive SBC %s, rpc: %s", cmp.Identifier, cmp.Rpc.Name)
+	recv.SetAcceptFunc(acceptRpc(cmp.Rpc))
+
+	go func() {
+		for msg := range recv.Ch() {
+			rpcNotification := msg.GetNotification().GetServerOriginatedRpcNotification()
+			args := getInvocationArguments(ctx, conn, rpcNotification)
+			args.statusBarComponentIdentifier = cmp.Identifier
+			invoke(conn, cmp.Rpc, args)
+		}
+	}()
+
+	if cmp.OnClick != nil {
+		if err := conn.registerClickHandler(ctx, cmp); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (conn *Connection) registerClickHandler(ctx context.Context, cmp StatusBarComponent) error {
+	clickRpc := Rpc{
+		Name: fmt.Sprintf("__%s__on_click",
+			strings.Replace(strings.Replace(cmp.Identifier, ".", "_", -1), "-", "_", -1)),
+		Args: ClickArgs{},
+		F:    cmp.OnClick,
+	}
+
+	ctx = context.WithValue(ctx, statusBarComponentIdentifierValueKey("identifier"), cmp.Identifier)
+
+	if err := conn.RegisterRpc(ctx, clickRpc); err != nil {
+		return fmt.Errorf("register click handler: %w", err)
+	}
+	return nil
+}
+
+// RegisterSessionTitleProvider registers a Session Title Provider. Registration lasts until the context is  canceled
+// or the conn's connection shuts down.
+// See https://www.iterm2.com/python-api/registration.html#iterm2.registration.TitleProviderRPC.
+func (conn *Connection) RegisterSessionTitleProvider(ctx context.Context, tp TitleProvider) error {
+	req := newRegistrationRequest(iterm2.RPCRegistrationRequest_SESSION_TITLE, tp.Rpc)
+
+	req.GetRpcRegistrationRequest().RoleSpecificAttributes = &iterm2.RPCRegistrationRequest_SessionTitleAttributes_{
+		SessionTitleAttributes: &iterm2.RPCRegistrationRequest_SessionTitleAttributes{
+			DisplayName:      &tp.DisplayName,
+			UniqueIdentifier: &tp.Identifier,
+		},
+	}
+	recv, err := conn.Subscribe(ctx, req)
+	if err != nil {
+		return fmt.Errorf("register title provider: %s", err)
+	}
+
+	recv.name = fmt.Sprintf("receive TP %s, rpc: %s", tp.Identifier, tp.Rpc.Name)
+	recv.SetAcceptFunc(acceptRpc(tp.Rpc))
+
+	go func() {
+		for msg := range recv.Ch() {
+			rpcNotification := msg.GetNotification().GetServerOriginatedRpcNotification()
+			args := getInvocationArguments(ctx, conn, rpcNotification)
+			invoke(conn, tp.Rpc, args)
+		}
+	}()
+
+	return nil
+}
+
+func newRegistrationRequest(role iterm2.RPCRegistrationRequest_Role, rpc Rpc) *iterm2.NotificationRequest {
+	subscribe := true
 	notificationType := iterm2.NotificationType_NOTIFY_ON_SERVER_ORIGINATED_RPC
 
-	req := &iterm2.NotificationRequest{
+	args, defaults := getArgs(rpc.Args)
+
+	return &iterm2.NotificationRequest{
 		Subscribe:        &subscribe,
 		NotificationType: &notificationType,
 		Arguments: &iterm2.NotificationRequest_RpcRegistrationRequest{
@@ -169,99 +354,6 @@ func RegisterRpc(ctx context.Context, client *Client, rpc Rpc) error {
 			},
 		},
 	}
-
-	invocations, err := client.Subscribe(ctx, req)
-	if err != nil {
-		return fmt.Errorf("register RpcFunc: %s", err)
-	}
-
-	handleInvocations(client, rpc.F, invocations)
-	return nil
-}
-
-func RegisterStatusBarComponent(ctx context.Context, client *Client, cmp StatusBarComponent) error {
-	knobs := "knobs"
-	subscribe := true
-	role := iterm2.RPCRegistrationRequest_STATUS_BAR_COMPONENT
-	notificationType := iterm2.NotificationType_NOTIFY_ON_SERVER_ORIGINATED_RPC
-
-	arguments, defaults := getArgs(cmp.Rpc.Args)
-	arguments = append(arguments, &iterm2.RPCRegistrationRequest_RPCArgumentSignature{Name: &knobs})
-	knobsList := getKnobs(cmp.Knobs)
-	var cadence *float32
-
-	if cmp.UpdateCadence > 0 {
-		cadence = &cmp.UpdateCadence
-	}
-
-	req := &iterm2.NotificationRequest{
-		Subscribe:        &subscribe,
-		NotificationType: &notificationType,
-		Arguments: &iterm2.NotificationRequest_RpcRegistrationRequest{
-			RpcRegistrationRequest: &iterm2.RPCRegistrationRequest{
-				Name:      &cmp.Rpc.Name,
-				Arguments: arguments,
-				Defaults:  defaults,
-				Role:      &role,
-				RoleSpecificAttributes: &iterm2.RPCRegistrationRequest_StatusBarComponentAttributes_{
-					StatusBarComponentAttributes: &iterm2.RPCRegistrationRequest_StatusBarComponentAttributes{
-						ShortDescription:    &cmp.ShortDescription,
-						DetailedDescription: &cmp.Description,
-						Exemplar:            &cmp.Exemplar,
-						UpdateCadence:       cadence,
-						UniqueIdentifier:    &cmp.Identifier,
-						Icons:               nil,
-						Knobs:               knobsList,
-					},
-				},
-			},
-		},
-	}
-
-	recv, err := client.Subscribe(ctx, req)
-	if err != nil {
-		return fmt.Errorf("register status bar component: %w", err)
-	}
-
-	handleInvocations(client, cmp.Rpc.F, recv)
-	return nil
-}
-
-// RegisterSessionTitleProvider registers a Session Title Provider. Registration lasts until the given context is
-// canceled, or the client's connection shuts down.
-func RegisterSessionTitleProvider(ctx context.Context, client *Client, tp TitleProvider) error {
-	subscribe := true
-	role := iterm2.RPCRegistrationRequest_SESSION_TITLE
-	notificationType := iterm2.NotificationType_NOTIFY_ON_SERVER_ORIGINATED_RPC
-
-	arguments, defaults := getArgs(tp.Rpc.Args)
-
-	req := &iterm2.NotificationRequest{
-		Subscribe:        &subscribe,
-		NotificationType: &notificationType,
-		Arguments: &iterm2.NotificationRequest_RpcRegistrationRequest{
-			RpcRegistrationRequest: &iterm2.RPCRegistrationRequest{
-				RoleSpecificAttributes: &iterm2.RPCRegistrationRequest_SessionTitleAttributes_{
-					SessionTitleAttributes: &iterm2.RPCRegistrationRequest_SessionTitleAttributes{
-						DisplayName:      &tp.DisplayName,
-						UniqueIdentifier: &tp.Identifier,
-					},
-				},
-				Role:      &role,
-				Name:      &tp.Rpc.Name,
-				Arguments: arguments,
-				Defaults:  defaults,
-			},
-		},
-	}
-
-	recv, err := client.Subscribe(ctx, req)
-	if err != nil {
-		return fmt.Errorf("register RpcFunc: %s", err)
-	}
-
-	handleInvocations(client, tp.Rpc.F, recv)
-	return nil
 }
 
 func getKnobs(v interface{}) []*iterm2.RPCRegistrationRequest_StatusBarComponentAttributes_Knob {
@@ -302,13 +394,13 @@ func getKnobs(v interface{}) []*iterm2.RPCRegistrationRequest_StatusBarComponent
 		switch {
 		case f.Kind() == reflect.Bool:
 			knobType = iterm2.RPCRegistrationRequest_StatusBarComponentAttributes_Knob_String
-			defaultJson = asJsonString(f.Bool())
+			defaultJson = json.MustMarshal(f.Bool())
 		case f.Kind() == reflect.String:
 			knobType = iterm2.RPCRegistrationRequest_StatusBarComponentAttributes_Knob_String
-			defaultJson = asJsonString(f.String())
+			defaultJson = json.MustMarshal(f.String())
 		case f.Kind() == reflect.Float64:
 			knobType = iterm2.RPCRegistrationRequest_StatusBarComponentAttributes_Knob_PositiveFloatingPoint
-			defaultJson = asJsonString(f.Float())
+			defaultJson = json.MustMarshal(f.Float())
 		default:
 			continue
 		}
@@ -325,11 +417,6 @@ func getKnobs(v interface{}) []*iterm2.RPCRegistrationRequest_StatusBarComponent
 	return knobs
 }
 
-func asJsonString(v interface{}) string {
-	data, _ := json.Marshal(v)
-	return string(data)
-}
-
 func getFirstNamedTag(tag reflect.StructTag, tagNames ...string) (string, error) {
 	for _, name := range tagNames {
 		value := tag.Get(name)
@@ -340,14 +427,25 @@ func getFirstNamedTag(tag reflect.StructTag, tagNames ...string) (string, error)
 	return "", fmt.Errorf("none of the tags has an usable value: %s", strings.Join(tagNames, ", "))
 }
 
-func getInvocationArguments(call *iterm2.ServerOriginatedRPC) *RpcInvocation {
+func getInvocationArguments(ctx context.Context, conn *Connection, rpcNotification *iterm2.ServerOriginatedRPCNotification) *RpcInvocation {
 	argsMap := make(map[string]string)
 
-	for _, arg := range call.GetArguments() {
+	for _, arg := range rpcNotification.GetRpc().GetArguments() {
 		argsMap[arg.GetName()] = arg.GetJsonValue()
 	}
 
-	return &RpcInvocation{args: argsMap}
+	invocation := &RpcInvocation{
+		conn:      conn,
+		name:      rpcNotification.GetRpc().GetName(),
+		args:      argsMap,
+		requestId: rpcNotification.GetRequestId(),
+	}
+
+	if v := ctx.Value(statusBarComponentIdentifierValueKey("identifier")); v != nil {
+		invocation.statusBarComponentIdentifier = v.(string)
+	}
+
+	return invocation
 }
 
 func getArgs(v interface{}) (arguments []*iterm2.RPCRegistrationRequest_RPCArgumentSignature, defaults []*iterm2.RPCRegistrationRequest_RPCArgument) {
@@ -388,46 +486,35 @@ func getArgs(v interface{}) (arguments []*iterm2.RPCRegistrationRequest_RPCArgum
 	return
 }
 
-func handleInvocations(client *Client, callback RpcFunc, invocations <-chan *iterm2.Notification) {
-	go func() {
-		for invocation := range invocations {
-			result := invoke(callback, invocation.GetServerOriginatedRpcNotification())
-
-			msg := &iterm2.ClientOriginatedMessage{
-				Id: seq.MessageId.Next(),
-				Submessage: &iterm2.ClientOriginatedMessage_ServerOriginatedRpcResultRequest{
-					ServerOriginatedRpcResultRequest: result,
-				},
-			}
-
-			err := client.Send(msg)
-			if err != nil {
-				logrus.Errorf("RpcFunc send: %s", err)
-			}
-		}
-	}()
-}
-
-func invoke(callback RpcFunc, invocation *iterm2.ServerOriginatedRPCNotification) *iterm2.ServerOriginatedRPCResultRequest {
-	returnValue, returnErr := callback(getInvocationArguments(invocation.GetRpc()))
+func invoke(conn *Connection, rpc Rpc, args *RpcInvocation) {
+	returnValue, returnErr := rpc.F(args)
 
 	var result *iterm2.ServerOriginatedRPCResultRequest
 
 	if returnErr == nil {
 		result = &iterm2.ServerOriginatedRPCResultRequest{
-			RequestId: invocation.RequestId,
+			RequestId: &args.requestId,
 			Result: &iterm2.ServerOriginatedRPCResultRequest_JsonValue{
-				JsonValue: asJsonString(returnValue),
+				JsonValue: json.MustMarshal(returnValue),
 			},
 		}
 	} else {
 		result = &iterm2.ServerOriginatedRPCResultRequest{
-			RequestId: invocation.RequestId,
+			RequestId: &args.requestId,
 			Result: &iterm2.ServerOriginatedRPCResultRequest_JsonException{
-				JsonException: asJsonString(map[string]string{"reason": returnErr.Error()}),
+				JsonException: json.MustMarshal(map[string]string{"reason": returnErr.Error()}),
 			},
 		}
 	}
 
-	return result
+	msg := &iterm2.ClientOriginatedMessage{
+		Submessage: &iterm2.ClientOriginatedMessage_ServerOriginatedRpcResultRequest{
+			ServerOriginatedRpcResultRequest: result,
+		},
+	}
+
+	err := conn.Send(msg)
+	if err != nil {
+		logrus.Errorf("RpcFunc send: %s", err)
+	}
 }

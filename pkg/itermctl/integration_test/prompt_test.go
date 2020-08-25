@@ -15,14 +15,16 @@ import (
 func TestPromptMonitor(t *testing.T) {
 	conn, err := itermctl.GetCredentialsAndConnect(test.AppName(t), true)
 	defer conn.Close()
-	client := itermctl.NewClient(conn)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	app := itermctl.NewApp(client)
+	app, err := itermctl.NewApp(conn)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	promptNotifications, err := itermctl.MonitorPrompts(ctx, client)
+	promptNotifications, err := conn.MonitorPrompts(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -39,7 +41,12 @@ func TestPromptMonitor(t *testing.T) {
 		}
 	}()
 
-	if err := app.SendText(testWindowResp.GetSessionId(), "ls\n\n", false); err != nil {
+	session, err := app.Session(testWindowResp.GetSessionId())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := session.SendText("ls\n\n", false); err != nil {
 		t.Fatal(err)
 	}
 

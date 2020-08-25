@@ -12,7 +12,7 @@ func main() {
 	}
 
 	rootCommand.AddCommand(
-		cmd.RpcCommand.AsCobraCommand(),
+		cmd.AppCommand.AsCobraCommand(),
 		cmd.AutolaunchCommand,
 	)
 

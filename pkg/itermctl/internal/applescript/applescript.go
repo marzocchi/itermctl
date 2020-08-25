@@ -33,4 +33,3 @@ func IsRunning(appName string) (bool, error) {
 
 	return false, nil
 }
-

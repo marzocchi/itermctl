@@ -16,8 +16,6 @@ func main() {
 		panic(err)
 	}
 
-	client := itermctl.NewClient(conn)
-
 	signals := make(chan os.Signal)
 	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
 
@@ -26,19 +24,18 @@ func main() {
 		conn.Close()
 	}()
 
-	terminatedSessions, err := itermctl.MonitorSessionsTermination(context.Background(), client)
+	terminatedSessions, err := conn.MonitorSessionsTermination(context.Background())
 	if err != nil {
 		panic(err)
 	}
 
-	newSessions, err := itermctl.MonitorNewSessions(context.Background(), client)
+	newSessions, err := conn.MonitorNewSessions(context.Background())
 	if err != nil {
 		panic(err)
 	}
 
-	prompts, err := itermctl.MonitorPrompts(
+	prompts, err := conn.MonitorPrompts(
 		context.Background(),
-		client,
 		iterm2.PromptMonitorMode_COMMAND_START,
 		iterm2.PromptMonitorMode_COMMAND_END,
 		iterm2.PromptMonitorMode_PROMPT,
@@ -66,5 +63,5 @@ func main() {
 		}
 	}()
 
-	<-conn.Done()
+	conn.Wait()
 }

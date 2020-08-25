@@ -15,18 +15,23 @@ import (
 
 func TestCustomControlSequenceMonitor(t *testing.T) {
 	conn, err := itermctl.GetCredentialsAndConnect(test.AppName(t), true)
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer conn.Close()
-	client := itermctl.NewClient(conn)
 
 	identity := "foo"
 	escaper := itermctl.NewCustomEscaper(identity)
-	app := itermctl.NewApp(client)
+	app, err := itermctl.NewApp(conn)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	re := regexp.MustCompile("test-sequence")
-	notifications, err := itermctl.MonitorCustomControlSequences(ctx, client, identity, re, itermctl.AllSessions)
+	notifications, err := conn.MonitorCustomControlSequences(ctx, identity, re, itermctl.AllSessions)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,6 +49,10 @@ func TestCustomControlSequenceMonitor(t *testing.T) {
 	}()
 
 	sessionId := testWindowResp.GetSessionId()
+	session, err := app.Session(sessionId)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	tempFile, err := ioutil.TempFile("", "*-custom_control_test")
 	if err != nil {
@@ -55,7 +64,7 @@ func TestCustomControlSequenceMonitor(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := app.SendText(sessionId, fmt.Sprintf("cat %s\n", tempFile.Name()), false); err != nil {
+	if err := session.SendText(fmt.Sprintf("cat %s\n", tempFile.Name()), false); err != nil {
 		t.Fatal(err)
 	}
 

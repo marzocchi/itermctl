@@ -5,8 +5,11 @@ import (
 	"fmt"
 )
 
-func ExampleRegisterRpc() {
-	var client *Client
+func ExampleConnection_RegisterRpc() {
+	conn, err := GetCredentialsAndConnect("itermctl_docs_RegisterRpc_example", true)
+	if err != nil {
+		panic(err)
+	}
 
 	type Args struct {
 		BoolArg   bool    `arg.name:"bool_arg"`
@@ -33,11 +36,16 @@ func ExampleRegisterRpc() {
 		},
 	}
 
-	_ = RegisterRpc(context.Background(), client, rpc)
+	if err := conn.RegisterRpc(context.Background(), rpc); err != nil {
+		panic(err)
+	}
 }
 
-func ExampleRegisterStatusBarComponent() {
-	var client *Client
+func ExampleConnection_RegisterStatusBarComponent() {
+	conn, err := GetCredentialsAndConnect("itermctl_docs_RegisterStatusBarComponent_example", true)
+	if err != nil {
+		panic(err)
+	}
 
 	type Knobs struct {
 		Checkbox bool    `knob.name:"Checkbox knob" json:"checkbox"`
@@ -71,11 +79,16 @@ func ExampleRegisterStatusBarComponent() {
 		},
 	}
 
-	_ = RegisterStatusBarComponent(context.Background(), client, cmp)
+	if err := conn.RegisterStatusBarComponent(context.Background(), cmp); err != nil {
+		panic(err)
+	}
 }
 
-func ExampleRegisterSessionTitleProvider() {
-	var client *Client
+func ExampleConnection_RegisterSessionTitleProvider() {
+	conn, err := GetCredentialsAndConnect("itermctl_docs_RegisterSessionTitleProvider_example", true)
+	if err != nil {
+		panic(err)
+	}
 
 	var args struct {
 		SessionId string `arg.name:"session_id" arg.ref:"id"`
@@ -98,5 +111,7 @@ func ExampleRegisterSessionTitleProvider() {
 		},
 	}
 
-	_ = RegisterSessionTitleProvider(context.Background(), client, tp)
+	if err := conn.RegisterSessionTitleProvider(context.Background(), tp); err != nil {
+		panic(err)
+	}
 }

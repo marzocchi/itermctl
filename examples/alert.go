@@ -12,8 +12,10 @@ func main() {
 	}
 	defer conn.Close()
 
-	client := itermctl.NewClient(conn)
-	app := itermctl.NewApp(client)
+	app, err := itermctl.NewApp(conn)
+	if err != nil {
+		panic(err)
+	}
 
 	windowId, err := app.ActiveWindowId()
 	if err != nil {

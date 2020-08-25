@@ -6,13 +6,14 @@ import (
 	"io/ioutil"
 	"mrz.io/itermctl/pkg/cli"
 	"mrz.io/itermctl/pkg/itermctl"
+	"mrz.io/itermctl/pkg/itermctl/env"
 	"os"
 	"text/tabwriter"
 )
 
-var RpcCommand = &cli.NestedCommand{
+var AppCommand = &cli.NestedCommand{
 	Command: &cobra.Command{
-		Use:   "rpc",
+		Use:   "app",
 		Short: "Commands for interacting with the running iTerm2 application",
 	},
 	Subcommands: []*cli.NestedCommand{
@@ -27,7 +28,7 @@ var SendTextCommand = &cli.NestedCommand{
 	Command: &cobra.Command{
 		Use:  "send-text SESSION_ID",
 		Args: cobra.ExactArgs(1),
-		RunE: cli.RunWithClient("itermctl", func(conn *itermctl.Client, cmd *cobra.Command, args []string) error {
+		RunE: cli.WithApp("itermctl", func(app *itermctl.App, cmd *cobra.Command, args []string) error {
 			suppressBroadcast, err := cmd.Flags().GetBool("suppress-broadcast")
 			if err != nil {
 				return err
@@ -38,8 +39,12 @@ var SendTextCommand = &cli.NestedCommand{
 				return err
 			}
 
-			err = itermctl.NewApp(conn).SendText(args[0], string(data), suppressBroadcast)
+			session, err := app.Session(args[0])
 			if err != nil {
+				return err
+			}
+
+			if err := session.SendText(string(data), suppressBroadcast); err != nil {
 				return err
 			}
 
@@ -53,20 +58,18 @@ var ListSessionsCommand = &cli.NestedCommand{
 		Use:  "list-sessions",
 		Long: "list sessions with status ([i]nactive, [a]ctive, [b]buried), session ID, window ID and optionally the session status",
 		Args: cobra.ExactArgs(0),
-		RunE: cli.RunWithClient("itermctl", func(conn *itermctl.Client, cmd *cobra.Command, args []string) error {
+		RunE: cli.WithApp("itermctl", func(app *itermctl.App, cmd *cobra.Command, args []string) error {
 			withTitles, err := cmd.Flags().GetBool("titles")
 			if err != nil {
 				return err
 			}
 
-			methods := itermctl.NewApp(conn)
-
-			sessionsResponse, err := methods.ListSessions()
+			sessionsResponse, err := app.ListSessions()
 			if err != nil {
 				return err
 			}
 
-			activeSessionId, err := methods.ActiveSessionId()
+			activeSessionId, err := app.ActiveSessionId()
 			if err != nil {
 				return err
 			}
@@ -120,8 +123,8 @@ var ListSessionsCommand = &cli.NestedCommand{
 var SplitPanesCommand = &cli.NestedCommand{
 	Command: &cobra.Command{
 		Use:  "split-pane SESSION_ID",
-		Args: cobra.ExactArgs(1),
-		RunE: cli.RunWithClient("itermctl", func(conn *itermctl.Client, cmd *cobra.Command, args []string) error {
+		Args: cobra.MaximumNArgs(1),
+		RunE: cli.WithApp("itermctl", func(app *itermctl.App, cmd *cobra.Command, args []string) error {
 			before, err := cmd.Flags().GetBool("before")
 			if err != nil {
 				return err
@@ -132,7 +135,24 @@ var SplitPanesCommand = &cli.NestedCommand{
 				return err
 			}
 
-			sessionIds, err := itermctl.NewApp(conn).SplitPane(args[0], vertical, before)
+			var sessionId string
+
+			if len(args) > 0 {
+				sessionId = args[0]
+			} else {
+				shellSession, err := env.Session()
+				if err != nil {
+					return fmt.Errorf("can't find current session: %w", err)
+				}
+				sessionId = shellSession.SessionId
+			}
+
+			session, err := app.Session(sessionId)
+			if err != nil {
+				return err
+			}
+
+			sessionIds, err := session.SplitPane(vertical, before)
 			if err != nil {
 				return err
 			}
@@ -149,9 +169,30 @@ var SplitPanesCommand = &cli.NestedCommand{
 var CreateTabCommand = &cli.NestedCommand{
 	Command: &cobra.Command{
 		Use:  "create-tab WINDOW_ID",
-		Args: cobra.ExactArgs(1),
-		RunE: cli.RunWithClient("itermctl", func(conn *itermctl.Client, cmd *cobra.Command, args []string) error {
-			windowId := args[0]
+		Args: cobra.MaximumNArgs(1),
+		RunE: cli.WithApp("itermctl", func(app *itermctl.App, cmd *cobra.Command, args []string) error {
+			var windowId string
+			if len(args) > 0 {
+				windowId = args[0]
+			} else {
+				shellSession, err := env.Session()
+				if err != nil {
+					return fmt.Errorf("can't find current window: %w", err)
+				}
+
+				sessions, err := app.ListSessions()
+				if err != nil {
+					return fmt.Errorf("can't find current window: %w", err)
+				}
+
+				if shellSession.WindowIndex > len(sessions.GetWindows())-1 {
+					return fmt.Errorf("can't find current window: there are only %d windows but index from shell is %d",
+						len(sessions.GetWindows()), shellSession.WindowIndex)
+				}
+
+				window := sessions.GetWindows()[shellSession.WindowIndex]
+				windowId = window.GetWindowId()
+			}
 
 			tabIndex, err := cmd.Flags().GetUint32("tab-index")
 			if err != nil {
@@ -163,7 +204,7 @@ var CreateTabCommand = &cli.NestedCommand{
 				return err
 			}
 
-			resp, err := itermctl.NewApp(conn).CreateTab(windowId, tabIndex, profileName)
+			resp, err := app.CreateTab(windowId, tabIndex, profileName)
 			if err != nil {
 				return err
 			}
@@ -175,7 +216,7 @@ var CreateTabCommand = &cli.NestedCommand{
 }
 
 func init() {
-	RpcCommand.PersistentFlags().Bool("activate", false,
+	AppCommand.PersistentFlags().Bool("activate", false,
 		"start iTerm2 and bring it to the front when requesting cookie; has no effect when the ITERM2_COOKIE environment variable is set")
 
 	SendTextCommand.Flags().Bool("suppress-broadcast", true, "")

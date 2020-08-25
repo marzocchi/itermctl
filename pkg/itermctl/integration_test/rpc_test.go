@@ -18,8 +18,6 @@ func TestRegisterCallback(t *testing.T) {
 
 	conn, err := itermctl.GetCredentialsAndConnect(test.AppName(t), true)
 	defer conn.Close()
-	client := itermctl.NewClient(conn)
-	app := itermctl.NewApp(client)
 
 	returnValue := "foo"
 
@@ -31,12 +29,12 @@ func TestRegisterCallback(t *testing.T) {
 		},
 	}
 
-	if err = itermctl.RegisterRpc(ctx, client, rpc); err != nil {
+	if err = conn.RegisterRpc(ctx, rpc); err != nil {
 		t.Fatal(err)
 	}
 
 	var result string
-	if err := app.InvokeFunction("test_callback_1()", &result); err != nil {
+	if err := conn.InvokeFunction("test_callback_1()", &result); err != nil {
 		t.Fatal(err)
 	}
 
@@ -52,9 +50,6 @@ func TestRegisterCallback_WithError(t *testing.T) {
 
 	conn, err := itermctl.GetCredentialsAndConnect(test.AppName(t), true)
 	defer conn.Close()
-	client := itermctl.NewClient(conn)
-
-	app := itermctl.NewApp(client)
 
 	errorString := "something went wrong in the callback"
 
@@ -66,12 +61,12 @@ func TestRegisterCallback_WithError(t *testing.T) {
 		},
 	}
 
-	if err := itermctl.RegisterRpc(ctx, client, rpc); err != nil {
+	if err := conn.RegisterRpc(ctx, rpc); err != nil {
 		t.Fatal(err)
 	}
 
 	var result string
-	err = app.InvokeFunction("test_callback_2()", &result)
+	err = conn.InvokeFunction("test_callback_2()", &result)
 
 	if err == nil {
 		t.Fatal("expected error, got nil")
@@ -89,9 +84,6 @@ func TestRegisterCallback_WithArguments(t *testing.T) {
 
 	conn, err := itermctl.GetCredentialsAndConnect(test.AppName(t), true)
 	defer conn.Close()
-	client := itermctl.NewClient(conn)
-
-	app := itermctl.NewApp(client)
 
 	var callbackReturnValue string
 
@@ -113,12 +105,12 @@ func TestRegisterCallback_WithArguments(t *testing.T) {
 		},
 	}
 
-	if err := itermctl.RegisterRpc(ctx, client, rpc); err != nil {
+	if err := conn.RegisterRpc(ctx, rpc); err != nil {
 		t.Fatal(err)
 	}
 
 	var result string
-	err = app.InvokeFunction(fmt.Sprintf("test_callback_3(foo: %q)", "bar"), &result)
+	err = conn.InvokeFunction(fmt.Sprintf("test_callback_3(foo: %q)", "bar"), &result)
 	if err != nil {
 		t.Fatal(err)
 	}

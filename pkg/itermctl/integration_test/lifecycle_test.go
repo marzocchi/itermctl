@@ -13,11 +13,13 @@ import (
 func TestNewSessionMonitor(t *testing.T) {
 	conn, err := itermctl.GetCredentialsAndConnect(test.AppName(t), true)
 	defer conn.Close()
-	client := itermctl.NewClient(conn)
 
-	app := itermctl.NewApp(client)
+	app, err := itermctl.NewApp(conn)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	newSessions, err := itermctl.MonitorNewSessions(nil, client)
+	newSessions, err := conn.MonitorNewSessions(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,21 +44,28 @@ func TestTerminateSessionMonitor(t *testing.T) {
 
 	conn, err := itermctl.GetCredentialsAndConnect(test.AppName(t), true)
 	defer conn.Close()
-	client := itermctl.NewClient(conn)
 
-	closedSessions, err := itermctl.MonitorSessionsTermination(nil, client)
+	closedSessions, err := conn.MonitorSessionsTermination(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	app := itermctl.NewApp(client)
+	app, err := itermctl.NewApp(conn)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	testWindowResp, err := app.CreateTab("", 0, "")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	err = app.SendText(testWindowResp.GetSessionId(), "exit\n", false)
+	session, err := app.Session(testWindowResp.GetSessionId())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = session.SendText("exit\n", false)
 	if err != nil {
 		t.Fatal(err)
 	}

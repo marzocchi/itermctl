@@ -1,11 +1,11 @@
-package itermctl
+package auth
 
 import (
 	"bufio"
 	"encoding/hex"
 	"fmt"
 	"github.com/mitchellh/go-homedir"
-	"mrz.io/itermctl/pkg/itermctl/applescript"
+	"mrz.io/itermctl/pkg/itermctl/internal/applescript"
 	"os"
 	"strings"
 	"syscall"
@@ -13,18 +13,14 @@ import (
 
 var (
 	disableAuthFile = "~/Library/Application Support/iTerm2/disable-automation-auth"
+	magicString     = "61DF88DC-3423-4823-B725-22570E01C027"
 )
 
-type Credentials struct {
-	Cookie string
-	Key    string
-}
-
-// AuthDisabled checks if iTerm2 is configured to accept connections from every client, or if a client should first
+// Disabled checks if iTerm2 is configured to accept connections from every client, or if a client should first
 // request the cookie and key instead. If auth is for sure disabled it returns nil, otherwise it returns an error
-// with a description of why it auth appears enabled or it was not possible to complete detection.
+// with a description of why auth appears enabled or it was not possible to complete detection.
 // See https://iterm2.com/python-api-auth.html for documentation of iTerm2's API Security.
-func AuthDisabled() error {
+func Disabled() error {
 	disableAuthFilePath, err := homedir.Expand(disableAuthFile)
 
 	if err != nil {
@@ -49,7 +45,7 @@ func AuthDisabled() error {
 		return fmt.Errorf("auth: %w", err)
 	}
 
-	magicString, err := GetMagicString()
+	magicString, err := MagicString()
 	if err != nil {
 		return fmt.Errorf("auth: %w", err)
 	}
@@ -64,9 +60,9 @@ func AuthDisabled() error {
 	return nil
 }
 
-// GetMagicString returns the expected contents of the `disable-automation-auth` file.
+// MagicString returns the expected contents of the `disable-automation-auth` file.
 // See https://iterm2.com/python-api-auth.html for documentation of iTerm2's API Security.
-func GetMagicString() (string, error) {
+func MagicString() (string, error) {
 	disableAuthFilePath, err := homedir.Expand(disableAuthFile)
 	if err != nil {
 		return "", fmt.Errorf("auth: %w", err)
@@ -76,10 +72,12 @@ func GetMagicString() (string, error) {
 	return encodedAuthFilePath + " " + magicString, nil
 }
 
-// GetCredentials returns the cookie and key to authenticate with iTerm2, requesting it to iTerm2 via AppleScript.
-// If activate is true, iTerm2 will be started automatically if it's currently not running.
+// RequestCookieAndKey requests the cookie and key to authenticate with iTerm2 via Applescript, potentially triggering
+// iTerm2's or macOS confirmation dialogs. If activate is true, iTerm2 will be started automatically if it's currently
+// not running. If iTerm2 is not running and and active is false, an error will be returned without attempting to
+// request the cookie and key.
 // See https://iterm2.com/python-api-auth.html for documentation of iTerm2's API Security.
-func GetCredentials(appName string, activate bool) (*Credentials, error) {
+func RequestCookieAndKey(appName string, activate bool) (string, string, error) {
 	var activateCommand string
 
 	if activate {
@@ -87,11 +85,11 @@ func GetCredentials(appName string, activate bool) (*Credentials, error) {
 	} else {
 		running, err := applescript.IsRunning("iTerm2")
 		if err != nil {
-			return nil, fmt.Errorf("get credentials: %w", err)
+			return "", "", fmt.Errorf("request cookie and key: %w", err)
 		}
 
 		if !running {
-			return nil, fmt.Errorf("get credentials: iTerm2 is not running and activation is disabled")
+			return "", "", fmt.Errorf("request cookie and key: iTerm2 is not running and activation is disabled")
 		}
 	}
 
@@ -104,13 +102,10 @@ func GetCredentials(appName string, activate bool) (*Credentials, error) {
 
 	out, err := applescript.RunScript(script)
 	if err != nil {
-		return nil, fmt.Errorf("get credentials: %w", err)
+		return "", "", fmt.Errorf("request cookie and key: %w", err)
 	}
 
 	parts := strings.Split(strings.TrimSpace(out), " ")
 
-	return &Credentials{
-		Cookie: parts[0],
-		Key:    parts[1],
-	}, nil
+	return parts[0], parts[1], nil
 }

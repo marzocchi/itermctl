@@ -5,13 +5,11 @@ import (
 	iterm2 "mrz.io/itermctl/pkg/itermctl/proto"
 )
 
-type SessionId = string
-
 // MonitorNewSessions subscribes to NewSessionNotifications and forwards each one to the returned channel, until the
 // given context is done or the Connection is shutdown.
-func MonitorNewSessions(ctx context.Context, client *Client) (<-chan *iterm2.NewSessionNotification, error) {
+func (conn *Connection) MonitorNewSessions(ctx context.Context) (<-chan *iterm2.NewSessionNotification, error) {
 	req := NewNotificationRequest(true, iterm2.NotificationType_NOTIFY_ON_NEW_SESSION, "")
-	src, err := client.Subscribe(ctx, req)
+	recv, err := conn.Subscribe(ctx, req)
 
 	if err != nil {
 		return nil, err
@@ -20,9 +18,9 @@ func MonitorNewSessions(ctx context.Context, client *Client) (<-chan *iterm2.New
 	notifications := make(chan *iterm2.NewSessionNotification)
 
 	go func() {
-		for n := range src {
-			if n.GetNewSessionNotification() != nil {
-				notifications <- n.GetNewSessionNotification()
+		for n := range recv.Ch() {
+			if n.GetNotification().GetNewSessionNotification() != nil {
+				notifications <- n.GetNotification().GetNewSessionNotification()
 			}
 		}
 
@@ -32,11 +30,11 @@ func MonitorNewSessions(ctx context.Context, client *Client) (<-chan *iterm2.New
 	return notifications, nil
 }
 
-// MonitorSessionsTermination subscribes to session termination notifications and writes the closed session's IDs to the
-// channel, until the given context is done or the Connection is shutdown.
-func MonitorSessionsTermination(ctx context.Context, client *Client) (<-chan *iterm2.TerminateSessionNotification, error) {
+// MonitorSessionsTermination subscribes to TerminateSessionNotification and writes each one to the returned channel,
+// until the given context is done or the Connection is shutdown.
+func (conn *Connection) MonitorSessionsTermination(ctx context.Context) (<-chan *iterm2.TerminateSessionNotification, error) {
 	req := NewNotificationRequest(true, iterm2.NotificationType_NOTIFY_ON_TERMINATE_SESSION, "")
-	src, err := client.Subscribe(ctx, req)
+	recv, err := conn.Subscribe(ctx, req)
 
 	if err != nil {
 		return nil, err
@@ -45,9 +43,9 @@ func MonitorSessionsTermination(ctx context.Context, client *Client) (<-chan *it
 	notifications := make(chan *iterm2.TerminateSessionNotification)
 
 	go func() {
-		for n := range src {
-			if n.GetTerminateSessionNotification() != nil {
-				notifications <- n.GetTerminateSessionNotification()
+		for n := range recv.Ch() {
+			if n.GetNotification().GetTerminateSessionNotification() != nil {
+				notifications <- n.GetNotification().GetTerminateSessionNotification()
 			}
 		}
 

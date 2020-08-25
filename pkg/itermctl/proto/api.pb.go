@@ -16417,11 +16417,11 @@ var file_api_proto_goTypes = []interface{}{
 	(*ColorPresetResponse_ListPresets)(nil),                            // 171: iterm2.ColorPresetResponse.ListPresets
 	(*ColorPresetResponse_GetPreset)(nil),                              // 172: iterm2.ColorPresetResponse.GetPreset
 	(*ColorPresetResponse_GetPreset_ColorSetting)(nil),                 // 173: iterm2.ColorPresetResponse.GetPreset.ColorSetting
-	(*PreferencesRequest_Request)(nil),                                 // 174: iterm2.PreferencesRequest.Request
-	(*PreferencesRequest_Request_SetPreference)(nil),                   // 175: iterm2.PreferencesRequest.Request.SetPreference
-	(*PreferencesRequest_Request_GetPreference)(nil),                   // 176: iterm2.PreferencesRequest.Request.GetPreference
-	(*PreferencesRequest_Request_SetDefaultProfile)(nil),               // 177: iterm2.PreferencesRequest.Request.SetDefaultProfile
-	(*PreferencesRequest_Request_GetDefaultProfile)(nil),               // 178: iterm2.PreferencesRequest.Request.GetDefaultProfile
+	(*PreferencesRequest_Request)(nil),                                 // 174: iterm2.PreferencesRequest.request
+	(*PreferencesRequest_Request_SetPreference)(nil),                   // 175: iterm2.PreferencesRequest.request.SetPreference
+	(*PreferencesRequest_Request_GetPreference)(nil),                   // 176: iterm2.PreferencesRequest.request.GetPreference
+	(*PreferencesRequest_Request_SetDefaultProfile)(nil),               // 177: iterm2.PreferencesRequest.request.SetDefaultProfile
+	(*PreferencesRequest_Request_GetDefaultProfile)(nil),               // 178: iterm2.PreferencesRequest.request.GetDefaultProfile
 	(*PreferencesResponse_Result)(nil),                                 // 179: iterm2.PreferencesResponse.Result
 	(*PreferencesResponse_Result_SetPreferenceResult)(nil),             // 180: iterm2.PreferencesResponse.Result.SetPreferenceResult
 	(*PreferencesResponse_Result_GetPreferenceResult)(nil),             // 181: iterm2.PreferencesResponse.Result.GetPreferenceResult
@@ -16555,7 +16555,7 @@ var file_api_proto_depIdxs = []int32{
 	171, // 96: iterm2.ColorPresetResponse.list_presets:type_name -> iterm2.ColorPresetResponse.ListPresets
 	172, // 97: iterm2.ColorPresetResponse.get_preset:type_name -> iterm2.ColorPresetResponse.GetPreset
 	10,  // 98: iterm2.ColorPresetResponse.status:type_name -> iterm2.ColorPresetResponse.Status
-	174, // 99: iterm2.PreferencesRequest.requests:type_name -> iterm2.PreferencesRequest.Request
+	174, // 99: iterm2.PreferencesRequest.requests:type_name -> iterm2.PreferencesRequest.request
 	179, // 100: iterm2.PreferencesResponse.results:type_name -> iterm2.PreferencesResponse.Result
 	185, // 101: iterm2.ReorderTabsRequest.assignments:type_name -> iterm2.ReorderTabsRequest.Assignment
 	13,  // 102: iterm2.ReorderTabsResponse.status:type_name -> iterm2.ReorderTabsResponse.Status
@@ -16669,10 +16669,10 @@ var file_api_proto_depIdxs = []int32{
 	55,  // 210: iterm2.SelectionRequest.SetSelectionRequest.selection:type_name -> iterm2.Selection
 	55,  // 211: iterm2.SelectionResponse.GetSelectionResponse.selection:type_name -> iterm2.Selection
 	173, // 212: iterm2.ColorPresetResponse.GetPreset.color_settings:type_name -> iterm2.ColorPresetResponse.GetPreset.ColorSetting
-	175, // 213: iterm2.PreferencesRequest.Request.set_preference_request:type_name -> iterm2.PreferencesRequest.Request.SetPreference
-	176, // 214: iterm2.PreferencesRequest.Request.get_preference_request:type_name -> iterm2.PreferencesRequest.Request.GetPreference
-	177, // 215: iterm2.PreferencesRequest.Request.set_default_profile_request:type_name -> iterm2.PreferencesRequest.Request.SetDefaultProfile
-	178, // 216: iterm2.PreferencesRequest.Request.get_default_profile_request:type_name -> iterm2.PreferencesRequest.Request.GetDefaultProfile
+	175, // 213: iterm2.PreferencesRequest.request.set_preference_request:type_name -> iterm2.PreferencesRequest.request.SetPreference
+	176, // 214: iterm2.PreferencesRequest.request.get_preference_request:type_name -> iterm2.PreferencesRequest.request.GetPreference
+	177, // 215: iterm2.PreferencesRequest.request.set_default_profile_request:type_name -> iterm2.PreferencesRequest.request.SetDefaultProfile
+	178, // 216: iterm2.PreferencesRequest.request.get_default_profile_request:type_name -> iterm2.PreferencesRequest.request.GetDefaultProfile
 	183, // 217: iterm2.PreferencesResponse.Result.unrecognized_request:type_name -> iterm2.PreferencesResponse.Result.UnrecognizedResult
 	180, // 218: iterm2.PreferencesResponse.Result.set_preference_result:type_name -> iterm2.PreferencesResponse.Result.SetPreferenceResult
 	181, // 219: iterm2.PreferencesResponse.Result.get_preference_result:type_name -> iterm2.PreferencesResponse.Result.GetPreferenceResult

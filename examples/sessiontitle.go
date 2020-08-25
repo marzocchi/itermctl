@@ -15,8 +15,6 @@ func main() {
 		panic(err)
 	}
 
-	client := itermctl.NewClient(conn)
-
 	signals := make(chan os.Signal)
 	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
 
@@ -46,10 +44,10 @@ func main() {
 		},
 	}
 
-	err = itermctl.RegisterSessionTitleProvider(context.Background(), client, tp)
+	err = conn.RegisterSessionTitleProvider(context.Background(), tp)
 	if err != nil {
 		panic(err)
 	}
 
-	<-conn.Done()
+	conn.Wait()
 }

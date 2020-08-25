@@ -15,8 +15,10 @@ func main() {
 		panic(err)
 	}
 
-	client := itermctl.NewClient(conn)
-	app := itermctl.NewApp(client)
+	app, err := itermctl.NewApp(conn)
+	if err != nil {
+		panic(err)
+	}
 
 	signals := make(chan os.Signal)
 	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
@@ -26,27 +28,32 @@ func main() {
 		conn.Close()
 	}()
 
-	sessionId, err := app.ActiveSessionId()
+	session, err := app.ActiveSession()
 	if err != nil {
 		panic(err)
 	}
 
-	screenUpdates, err := itermctl.MonitorScreenUpdates(context.Background(), client, sessionId)
+	screenUpdates, err := conn.MonitorScreenUpdates(context.Background(), session.Id())
 	if err != nil {
 		panic(err)
 	}
 
 	go func() {
-		for su := range screenUpdates {
-			fmt.Printf("screen updated in session %s:\n", su.GetSession())
-			contents, err := app.ScreenContents(su.GetSession())
+		var lastOffset int32
+
+		for range screenUpdates {
+			contents, err := session.ScreenContents()
 			if err != nil {
 				panic(err)
 			}
 
-			fmt.Printf("%#v", contents)
+			fmt.Printf("last offset: %d\n", lastOffset)
+
+			for i, line := range contents.GetContents() {
+				fmt.Printf("line %d: %s\n", i, line.GetText())
+			}
 		}
 	}()
 
-	<-conn.Done()
+	conn.Wait()
 }

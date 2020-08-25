@@ -5,7 +5,9 @@ import (
 	iterm2 "mrz.io/itermctl/pkg/itermctl/proto"
 )
 
-func MonitorKeystrokes(ctx context.Context, client *Client, sessionId string) (<-chan *iterm2.KeystrokeNotification, error) {
+// MonitorKeystrokes subscribes to KeystrokeNotification and writes each one to the returned channel, until the context
+// is canceled or the Connection is closed.
+func (conn *Connection) MonitorKeystrokes(ctx context.Context, sessionId string) (<-chan *iterm2.KeystrokeNotification, error) {
 	if sessionId == "" {
 		sessionId = AllSessions
 	}
@@ -14,7 +16,7 @@ func MonitorKeystrokes(ctx context.Context, client *Client, sessionId string) (<
 	nt = iterm2.NotificationType_NOTIFY_ON_KEYSTROKE
 
 	req := NewNotificationRequest(true, nt, "")
-	notifications, err := client.Subscribe(ctx, req)
+	recv, err := conn.Subscribe(ctx, req)
 
 	if err != nil {
 		return nil, err
@@ -23,13 +25,13 @@ func MonitorKeystrokes(ctx context.Context, client *Client, sessionId string) (<
 	keystrokes := make(chan *iterm2.KeystrokeNotification)
 
 	go func() {
-		for notification := range notifications {
-			if notification.GetKeystrokeNotification() != nil {
-				if sessionId != AllSessions && notification.GetKeystrokeNotification().GetSession() != sessionId {
+		for msg := range recv.Ch() {
+			if msg.GetNotification().GetKeystrokeNotification() != nil {
+				if sessionId != AllSessions && msg.GetNotification().GetKeystrokeNotification().GetSession() != sessionId {
 					continue
 				}
 
-				keystrokes <- notification.GetKeystrokeNotification()
+				keystrokes <- msg.GetNotification().GetKeystrokeNotification()
 			}
 		}
 		close(keystrokes)

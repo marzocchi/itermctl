@@ -23,7 +23,7 @@ func (nc *NestedCommand) AsCobraCommand() *cobra.Command {
 	return cobraCmd
 }
 
-func RunWithCtx(f func(ctx context.Context, cmd *cobra.Command, args []string) error) func(cmd *cobra.Command, args []string) error {
+func WithContext(f func(ctx context.Context, cmd *cobra.Command, args []string) error) func(cmd *cobra.Command, args []string) error {
 	signals := make(chan os.Signal)
 	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
 
@@ -39,27 +39,31 @@ func RunWithCtx(f func(ctx context.Context, cmd *cobra.Command, args []string) e
 	}
 }
 
-func RunWithClient(appName string, f func(client *itermctl.Client, cmd *cobra.Command, args []string) error) func(cmd *cobra.Command, args []string) error {
-	return RunWithCtx(func(ctx context.Context, cmd *cobra.Command, args []string) error {
+func WithApp(appName string, f func(app *itermctl.App, cmd *cobra.Command, args []string) error) func(cmd *cobra.Command, args []string) error {
+	return WithConnection(appName, func(conn *itermctl.Connection, cmd *cobra.Command, args []string) error {
+		app, err := itermctl.NewApp(conn)
+		if err != nil {
+			return err
+		}
+
+		return f(app, cmd, args)
+	})
+}
+
+func WithConnection(appName string, f func(conn *itermctl.Connection, cmd *cobra.Command, args []string) error) func(cmd *cobra.Command, args []string) error {
+	return WithContext(func(ctx context.Context, cmd *cobra.Command, args []string) error {
 		activate, err := cmd.Flags().GetBool("activate")
 		if err != nil {
 			return err
 		}
 
-		credentials, err := itermctl.GetCredentials(appName, activate)
+		conn, err := itermctl.GetCredentialsAndConnect(appName, activate)
 		if err != nil {
 			return err
 		}
-
-		conn, err := itermctl.Connect(appName, credentials)
-		if err != nil {
-			return err
-		}
-
-		client := itermctl.NewClient(conn)
 
 		defer conn.Close()
 
-		return f(client, cmd, args)
+		return f(conn, cmd, args)
 	})
 }

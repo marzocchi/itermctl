@@ -6,7 +6,6 @@ import (
 	"context"
 	"fmt"
 	"mrz.io/itermctl/pkg/itermctl"
-	"mrz.io/itermctl/pkg/itermctl/internal/seq"
 	"mrz.io/itermctl/pkg/itermctl/internal/test"
 	iterm2 "mrz.io/itermctl/pkg/itermctl/proto"
 	"testing"
@@ -15,11 +14,10 @@ import (
 
 func TestClient_CloseConnectionDuringGetResponse(t *testing.T) {
 	conn, err := itermctl.GetCredentialsAndConnect(test.AppName(t), true)
-	client := itermctl.NewClient(conn)
 
 	funcName := "itermctl_test_sleep_func"
 
-	itermctl.RegisterRpc(context.TODO(), client, itermctl.Rpc{
+	conn.RegisterRpc(context.Background(), itermctl.Rpc{
 		Name: funcName,
 		Args: nil,
 		F: func(args *itermctl.RpcInvocation) (interface{}, error) {
@@ -31,7 +29,6 @@ func TestClient_CloseConnectionDuringGetResponse(t *testing.T) {
 	invocation := fmt.Sprintf("%s()", funcName)
 
 	req := &iterm2.ClientOriginatedMessage{
-		Id: seq.MessageId.Next(),
 		Submessage: &iterm2.ClientOriginatedMessage_InvokeFunctionRequest{
 			InvokeFunctionRequest: &iterm2.InvokeFunctionRequest{
 				Context:    &iterm2.InvokeFunctionRequest_App_{},
@@ -40,17 +37,15 @@ func TestClient_CloseConnectionDuringGetResponse(t *testing.T) {
 		},
 	}
 
-	respCh, err := client.Request(context.TODO(), req)
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	go func() {
 		<-time.After(500 * time.Millisecond)
 		conn.Close()
 	}()
 
-	resp := <-respCh
+	resp, err := conn.GetResponse(context.Background(), req)
+	if err != nil {
+		t.Fatalf("expected no error, got %s", err)
+	}
 	if resp != nil {
 		t.Fatalf("expected resp = nil, got %s", resp)
 	}
@@ -58,14 +53,18 @@ func TestClient_CloseConnectionDuringGetResponse(t *testing.T) {
 
 func TestClient_Subscribe(t *testing.T) {
 	conn, err := itermctl.GetCredentialsAndConnect(test.AppName(t), true)
-	defer conn.Close()
-	client := itermctl.NewClient(conn)
+	defer func() {
+		conn.Close()
+	}()
 
-	app := itermctl.NewApp(client)
+	app, err := itermctl.NewApp(conn)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	req := itermctl.NewNotificationRequest(true, iterm2.NotificationType_NOTIFY_ON_NEW_SESSION, "")
-	notifications, err := client.Subscribe(ctx, req)
+	recv, err := conn.Subscribe(ctx, req)
 
 	if err != nil {
 		t.Fatal(err)
@@ -85,9 +84,9 @@ func TestClient_Subscribe(t *testing.T) {
 	select {
 	case <-time.After(1 * time.Second):
 		t.Fatalf("timed out while waiting for first notification")
-	case n1 := <-notifications:
-		if n1.GetNewSessionNotification().GetSessionId() != window1Resp.GetSessionId() {
-			t.Fatalf("expected %q, got %q", window1Resp.GetSessionId(), n1.GetNewSessionNotification().GetSessionId())
+	case n1 := <-recv.Ch():
+		if n1.GetNotification().GetNewSessionNotification().GetSessionId() != window1Resp.GetSessionId() {
+			t.Fatalf("expected %q, got %q", window1Resp.GetSessionId(), n1.GetNotification().GetNewSessionNotification().GetSessionId())
 		}
 	}
 
@@ -107,7 +106,7 @@ func TestClient_Subscribe(t *testing.T) {
 	select {
 	case <-time.After(1 * time.Second):
 		t.Fatalf("timed out while waiting for first notification")
-	case _, ok := <-notifications:
+	case _, ok := <-recv.Ch():
 		if ok != false {
 			t.Fatal("expected channel to be closed")
 		}

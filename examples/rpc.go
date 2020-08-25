@@ -16,9 +16,6 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	defer conn.Close()
-
-	client := itermctl.NewClient(conn)
 
 	signals := make(chan os.Signal)
 	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
@@ -28,7 +25,7 @@ func main() {
 		conn.Close()
 	}()
 
-	err = itermctl.RegisterRpc(context.Background(), client,
+	err = conn.RegisterRpc(context.Background(),
 		itermctl.Rpc{
 			Name: "itermctl_example_say",
 			Args: SayArgs{Message: "hello, world!", SessionId: "id"},
@@ -39,7 +36,7 @@ func main() {
 		panic(err)
 	}
 
-	<-conn.Done()
+	conn.Wait()
 }
 
 type SayArgs struct {

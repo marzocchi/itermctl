@@ -15,8 +15,6 @@ func main() {
 		panic(err)
 	}
 
-	client := itermctl.NewClient(conn)
-
 	signals := make(chan os.Signal)
 	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
 
@@ -25,7 +23,7 @@ func main() {
 		conn.Close()
 	}()
 
-	keystrokes, err := itermctl.MonitorKeystrokes(context.Background(), client, itermctl.AllSessions)
+	keystrokes, err := conn.MonitorKeystrokes(context.Background(), itermctl.AllSessions)
 	if err != nil {
 		panic(err)
 	}
@@ -36,5 +34,5 @@ func main() {
 		}
 	}()
 
-	<-conn.Done()
+	conn.Wait()
 }

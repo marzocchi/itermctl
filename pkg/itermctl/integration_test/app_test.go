@@ -8,15 +8,14 @@ import (
 	"mrz.io/itermctl/pkg/itermctl"
 	"mrz.io/itermctl/pkg/itermctl/internal/test"
 	"testing"
+	"time"
 )
 
-func TestApp_InvokeFunction(t *testing.T) {
+func TestConnection_InvokeFunction(t *testing.T) {
 	t.Parallel()
 
 	conn, err := itermctl.GetCredentialsAndConnect(test.AppName(t), true)
 	defer conn.Close()
-	client := itermctl.NewClient(conn)
-	app := itermctl.NewApp(client)
 
 	type A struct {
 		Foo string
@@ -33,10 +32,10 @@ func TestApp_InvokeFunction(t *testing.T) {
 		},
 	}
 
-	itermctl.RegisterRpc(context.TODO(), client, rpc)
+	conn.RegisterRpc(context.Background(), rpc)
 
 	var result string
-	err = app.InvokeFunction(fmt.Sprintf("rpc_test_succeeding_func(%s: %q)", "foo", args.Foo), &result)
+	err = conn.InvokeFunction(fmt.Sprintf("rpc_test_succeeding_func(%s: %q)", "foo", args.Foo), &result)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,14 +45,15 @@ func TestApp_InvokeFunction(t *testing.T) {
 	}
 }
 
-func TestApp_InvokeFunction_WithError(t *testing.T) {
+func TestConnection_InvokeFunction_WithError(t *testing.T) {
 	t.Parallel()
-
 	conn, err := itermctl.GetCredentialsAndConnect(test.AppName(t), true)
-	defer conn.Close()
-	client := itermctl.NewClient(conn)
 
-	app := itermctl.NewApp(client)
+	defer func() {
+		conn.Close()
+		<-time.After(1 * time.Second)
+	}()
+
 	errorString := "error from the RpcFunc function"
 
 	rpc := itermctl.Rpc{
@@ -64,12 +64,12 @@ func TestApp_InvokeFunction_WithError(t *testing.T) {
 		},
 	}
 
-	if err := itermctl.RegisterRpc(nil, client, rpc); err != nil {
+	if err := conn.RegisterRpc(context.Background(), rpc); err != nil {
 		t.Fatal(err)
 	}
 
 	var result string
-	err = app.InvokeFunction("rpc_test_failing_func()", &result)
+	err = conn.InvokeFunction("rpc_test_failing_func()", &result)
 
 	if err == nil {
 		t.Fatal(err)
@@ -88,9 +88,11 @@ func TestApp_InvokeFunction_WithError(t *testing.T) {
 func TestApp_CreateTab_CloseTab(t *testing.T) {
 	conn, err := itermctl.GetCredentialsAndConnect(test.AppName(t), true)
 	defer conn.Close()
-	client := itermctl.NewClient(conn)
 
-	app := itermctl.NewApp(client)
+	app, err := itermctl.NewApp(conn)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	testWindowResp, err := app.CreateTab("", 0, "")
 	if err != nil {
