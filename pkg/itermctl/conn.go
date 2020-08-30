@@ -62,7 +62,9 @@ type receiver struct {
 }
 
 func newReceiver(name string, f AcceptFunc) *receiver {
-	return &receiver{name: name, mx: &sync.Mutex{}, ch: make(chan *iterm2.ServerOriginatedMessage, 100), acceptFunc: f}
+	r := &receiver{name: name, mx: &sync.Mutex{}, ch: make(chan *iterm2.ServerOriginatedMessage, 100)}
+	r.SetAcceptFunc(f)
+	return r
 }
 
 func (r *receiver) Ch() <-chan *iterm2.ServerOriginatedMessage {
