@@ -1,5 +1,3 @@
-// +build test_with_iterm
-
 package integration_test
 
 import (
@@ -7,25 +5,14 @@ import (
 	"fmt"
 	"io/ioutil"
 	"mrz.io/itermctl/pkg/itermctl"
-	"mrz.io/itermctl/pkg/itermctl/internal/test"
 	"regexp"
 	"testing"
 	"time"
 )
 
 func TestCustomControlSequenceMonitor(t *testing.T) {
-	conn, err := itermctl.GetCredentialsAndConnect(test.AppName(t), true)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer conn.Close()
-
 	identity := "foo"
-	escaper := itermctl.NewCustomEscaper(identity)
-	app, err := itermctl.NewApp(conn)
-	if err != nil {
-		t.Fatal(err)
-	}
+	escaper := itermctl.NewCustomControlSequenceEscaper(identity)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -69,7 +56,7 @@ func TestCustomControlSequenceMonitor(t *testing.T) {
 	}
 
 	select {
-	case <-time.After(1 * time.Second):
+	case <-time.After(5 * time.Second):
 		t.Fatal("timed out")
 	case notification := <-notifications:
 		if testWindowResp.GetSessionId() != notification.Notification.GetSession() {

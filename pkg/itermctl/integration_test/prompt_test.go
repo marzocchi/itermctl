@@ -1,11 +1,7 @@
-// +build test_with_iterm
-
 package integration_test
 
 import (
 	"context"
-	"mrz.io/itermctl/pkg/itermctl"
-	"mrz.io/itermctl/pkg/itermctl/internal/test"
 	iterm2 "mrz.io/itermctl/pkg/itermctl/proto"
 	"reflect"
 	"testing"
@@ -13,16 +9,8 @@ import (
 )
 
 func TestPromptMonitor(t *testing.T) {
-	conn, err := itermctl.GetCredentialsAndConnect(test.AppName(t), true)
-	defer conn.Close()
-
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-
-	app, err := itermctl.NewApp(conn)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	promptNotifications, err := conn.MonitorPrompts(ctx)
 	if err != nil {
@@ -50,7 +38,7 @@ func TestPromptMonitor(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	prompts := collectPrompts(promptNotifications, 3, t)
+	prompts := collectPrompts(promptNotifications, session.Id(), 3, t)
 
 	if findPrompt(prompts, &iterm2.PromptNotification_Prompt{}) == nil {
 		t.Fatal("expected a PromptNotification_Prompt, got nil")
@@ -75,17 +63,23 @@ func findPrompt(prompts []*iterm2.PromptNotification, event interface{}) *iterm2
 	return nil
 }
 
-func collectPrompts(src <-chan *iterm2.PromptNotification, max int, t *testing.T) []*iterm2.PromptNotification {
+func collectPrompts(src <-chan *iterm2.PromptNotification, sessionId string, max int, t *testing.T) []*iterm2.PromptNotification {
 	var prompts []*iterm2.PromptNotification
 
 	for {
 		select {
 		case <-time.After(2 * time.Second):
-			t.Fatal("timed out")
-		case prompt := <-src:
-			prompts = append(prompts, prompt)
-			if len(prompts) == max {
-				return prompts
+			t.Fatalf("timed out (prompts received: %d)", len(prompts))
+		case prompt, ok := <-src:
+			if !ok {
+				src = nil
+				continue
+			}
+			if sessionId == prompt.GetSession() {
+				prompts = append(prompts, prompt)
+				if len(prompts) == max {
+					return prompts
+				}
 			}
 		}
 	}

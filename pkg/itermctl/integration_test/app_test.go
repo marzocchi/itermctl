@@ -1,5 +1,3 @@
-// +build test_with_iterm
-
 package integration_test
 
 import (
@@ -12,11 +10,6 @@ import (
 )
 
 func TestConnection_InvokeFunction(t *testing.T) {
-	t.Parallel()
-
-	conn, err := itermctl.GetCredentialsAndConnect(test.AppName(t), true)
-	defer conn.Close()
-
 	type A struct {
 		Foo string
 	}
@@ -35,7 +28,7 @@ func TestConnection_InvokeFunction(t *testing.T) {
 	conn.RegisterRpc(context.Background(), rpc)
 
 	var result string
-	err = conn.InvokeFunction(fmt.Sprintf("rpc_test_succeeding_func(%s: %q)", "foo", args.Foo), &result)
+	err := conn.InvokeFunction(fmt.Sprintf("rpc_test_succeeding_func(%s: %q)", "foo", args.Foo), &result)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,8 +39,10 @@ func TestConnection_InvokeFunction(t *testing.T) {
 }
 
 func TestConnection_InvokeFunction_WithError(t *testing.T) {
-	t.Parallel()
 	conn, err := itermctl.GetCredentialsAndConnect(test.AppName(t), true)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	defer func() {
 		conn.Close()
@@ -86,14 +81,6 @@ func TestConnection_InvokeFunction_WithError(t *testing.T) {
 }
 
 func TestApp_CreateTab_CloseTab(t *testing.T) {
-	conn, err := itermctl.GetCredentialsAndConnect(test.AppName(t), true)
-	defer conn.Close()
-
-	app, err := itermctl.NewApp(conn)
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	testWindowResp, err := app.CreateTab("", 0, "")
 	if err != nil {
 		t.Fatal(err)

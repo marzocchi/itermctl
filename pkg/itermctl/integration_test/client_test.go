@@ -1,23 +1,48 @@
-// +build test_with_iterm
-
 package integration_test
 
 import (
 	"context"
 	"fmt"
 	"mrz.io/itermctl/pkg/itermctl"
-	"mrz.io/itermctl/pkg/itermctl/internal/test"
 	iterm2 "mrz.io/itermctl/pkg/itermctl/proto"
+	"os"
 	"testing"
 	"time"
 )
 
+var conn *itermctl.Connection
+var app *itermctl.App
+
+func TestMain(m *testing.M) {
+	itermctl.WaitResponseTimeout = 20 * time.Second
+	var err error
+	conn, err = itermctl.GetCredentialsAndConnect("itermctl_integration_test", true)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err.Error())
+		os.Exit(1)
+	}
+
+	app, err = itermctl.NewApp(conn)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err.Error())
+		os.Exit(1)
+	}
+
+	os.Exit(func() int {
+		defer conn.Close()
+		return m.Run()
+	}())
+}
+
 func TestClient_CloseConnectionDuringGetResponse(t *testing.T) {
-	conn, err := itermctl.GetCredentialsAndConnect(test.AppName(t), true)
+	conn, err := itermctl.GetCredentialsAndConnect("itermctl_integration_test", true)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	funcName := "itermctl_test_sleep_func"
 
-	conn.RegisterRpc(context.Background(), itermctl.Rpc{
+	err = conn.RegisterRpc(context.Background(), itermctl.Rpc{
 		Name: funcName,
 		Args: nil,
 		F: func(args *itermctl.RpcInvocation) (interface{}, error) {
@@ -25,6 +50,10 @@ func TestClient_CloseConnectionDuringGetResponse(t *testing.T) {
 			return nil, nil
 		},
 	})
+
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	invocation := fmt.Sprintf("%s()", funcName)
 
@@ -52,16 +81,8 @@ func TestClient_CloseConnectionDuringGetResponse(t *testing.T) {
 }
 
 func TestClient_Subscribe(t *testing.T) {
-	conn, err := itermctl.GetCredentialsAndConnect(test.AppName(t), true)
-	defer func() {
-		conn.Close()
-	}()
-
-	app, err := itermctl.NewApp(conn)
-	if err != nil {
-		t.Fatal(err)
-	}
-
+	// TODO change assertion on expected sessions so that it can be run in parallel
+	// t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())
 	req := itermctl.NewNotificationRequest(true, iterm2.NotificationType_NOTIFY_ON_NEW_SESSION, "")
 	recv, err := conn.Subscribe(ctx, req)
@@ -84,9 +105,10 @@ func TestClient_Subscribe(t *testing.T) {
 	select {
 	case <-time.After(1 * time.Second):
 		t.Fatalf("timed out while waiting for first notification")
-	case n1 := <-recv.Ch():
-		if n1.GetNotification().GetNewSessionNotification().GetSessionId() != window1Resp.GetSessionId() {
-			t.Fatalf("expected %q, got %q", window1Resp.GetSessionId(), n1.GetNotification().GetNewSessionNotification().GetSessionId())
+	case n := <-recv.Ch():
+		if n.GetNotification().GetNewSessionNotification().GetSessionId() != window1Resp.GetSessionId() {
+			t.Fatalf("expected notification for session %s, got %s", window1Resp.GetSessionId(),
+				n.GetNotification().GetNewSessionNotification().GetSessionId())
 		}
 	}
 
@@ -103,12 +125,20 @@ func TestClient_Subscribe(t *testing.T) {
 		}
 	}()
 
+	var notificationsAfterCancel []*iterm2.ServerOriginatedMessage
+
 	select {
 	case <-time.After(1 * time.Second):
-		t.Fatalf("timed out while waiting for first notification")
-	case _, ok := <-recv.Ch():
-		if ok != false {
-			t.Fatal("expected channel to be closed")
+		t.Fatalf("timed out while waiting for channel to close")
+	case n, ok := <-recv.Ch():
+		if !ok {
+			break
 		}
+		notificationsAfterCancel = append(notificationsAfterCancel, n)
+	}
+
+
+	if len(notificationsAfterCancel) > 0 {
+		t.Fatalf("expected no notification after context cancel, got %d", len(notificationsAfterCancel))
 	}
 }

@@ -1,5 +1,3 @@
-// +build test_with_iterm
-
 package integration_test
 
 import (
@@ -7,17 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"mrz.io/itermctl/pkg/itermctl"
-	"mrz.io/itermctl/pkg/itermctl/internal/test"
 	"testing"
 )
 
 func TestRegisterCallback(t *testing.T) {
-	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-
-	conn, err := itermctl.GetCredentialsAndConnect(test.AppName(t), true)
-	defer conn.Close()
 
 	returnValue := "foo"
 
@@ -29,7 +22,7 @@ func TestRegisterCallback(t *testing.T) {
 		},
 	}
 
-	if err = conn.RegisterRpc(ctx, rpc); err != nil {
+	if err := conn.RegisterRpc(ctx, rpc); err != nil {
 		t.Fatal(err)
 	}
 
@@ -48,9 +41,6 @@ func TestRegisterCallback_WithError(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	conn, err := itermctl.GetCredentialsAndConnect(test.AppName(t), true)
-	defer conn.Close()
-
 	errorString := "something went wrong in the callback"
 
 	rpc := itermctl.Rpc{
@@ -66,7 +56,7 @@ func TestRegisterCallback_WithError(t *testing.T) {
 	}
 
 	var result string
-	err = conn.InvokeFunction("test_callback_2()", &result)
+	err := conn.InvokeFunction("test_callback_2()", &result)
 
 	if err == nil {
 		t.Fatal("expected error, got nil")
@@ -78,12 +68,8 @@ func TestRegisterCallback_WithError(t *testing.T) {
 }
 
 func TestRegisterCallback_WithArguments(t *testing.T) {
-	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-
-	conn, err := itermctl.GetCredentialsAndConnect(test.AppName(t), true)
-	defer conn.Close()
 
 	var callbackReturnValue string
 
@@ -110,8 +96,7 @@ func TestRegisterCallback_WithArguments(t *testing.T) {
 	}
 
 	var result string
-	err = conn.InvokeFunction(fmt.Sprintf("test_callback_3(foo: %q)", "bar"), &result)
-	if err != nil {
+	if err := conn.InvokeFunction(fmt.Sprintf("test_callback_3(foo: %q)", "bar"), &result); err != nil {
 		t.Fatal(err)
 	}
 

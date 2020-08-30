@@ -220,7 +220,7 @@ func (conn *Connection) RegisterRpc(ctx context.Context, rpc Rpc) error {
 		return fmt.Errorf("register rpc: %s", err)
 	}
 
-	recv.name = fmt.Sprintf("receive rpc: %s", rpc.Name)
+	recv.SetName(fmt.Sprintf("receive rpc: %s", rpc.Name))
 	recv.SetAcceptFunc(acceptRpc(rpc))
 
 	go func() {
@@ -268,7 +268,7 @@ func (conn *Connection) RegisterStatusBarComponent(ctx context.Context, cmp Stat
 		return fmt.Errorf("register status bar component: %w", err)
 	}
 
-	recv.name = fmt.Sprintf("receive SBC %s, rpc: %s", cmp.Identifier, cmp.Rpc.Name)
+	recv.SetName(fmt.Sprintf("receive SBC %s, rpc: %s", cmp.Identifier, cmp.Rpc.Name))
 	recv.SetAcceptFunc(acceptRpc(cmp.Rpc))
 
 	go func() {
@@ -322,7 +322,7 @@ func (conn *Connection) RegisterSessionTitleProvider(ctx context.Context, tp Tit
 		return fmt.Errorf("register title provider: %s", err)
 	}
 
-	recv.name = fmt.Sprintf("receive TP %s, rpc: %s", tp.Identifier, tp.Rpc.Name)
+	recv.SetName(fmt.Sprintf("receive TP %s, rpc: %s", tp.Identifier, tp.Rpc.Name))
 	recv.SetAcceptFunc(acceptRpc(tp.Rpc))
 
 	go func() {
