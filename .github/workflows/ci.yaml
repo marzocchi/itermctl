@@ -3,7 +3,6 @@ on: [push]
 jobs:
   tests:
     timeout-minutes: 10
-    name: All Tests
     runs-on: macos-latest
 
     steps:
