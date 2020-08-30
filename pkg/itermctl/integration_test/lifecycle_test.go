@@ -1,25 +1,17 @@
-// +build test_with_iterm
-
 package integration_test
 
 import (
-	"mrz.io/itermctl/pkg/itermctl"
-	"mrz.io/itermctl/pkg/itermctl/internal/test"
+	"context"
 	iterm2 "mrz.io/itermctl/pkg/itermctl/proto"
 	"testing"
 	"time"
 )
 
 func TestNewSessionMonitor(t *testing.T) {
-	conn, err := itermctl.GetCredentialsAndConnect(test.AppName(t), true)
-	defer conn.Close()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-	app, err := itermctl.NewApp(conn)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	newSessions, err := conn.MonitorNewSessions(nil)
+	newSessions, err := conn.MonitorNewSessions(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,15 +34,10 @@ func TestNewSessionMonitor(t *testing.T) {
 func TestTerminateSessionMonitor(t *testing.T) {
 	t.Parallel()
 
-	conn, err := itermctl.GetCredentialsAndConnect(test.AppName(t), true)
-	defer conn.Close()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-	closedSessions, err := conn.MonitorSessionsTermination(nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	app, err := itermctl.NewApp(conn)
+	closedSessions, err := conn.MonitorSessionsTermination(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,7 +61,7 @@ func TestTerminateSessionMonitor(t *testing.T) {
 }
 
 func expectSessionId(t *testing.T, notifications interface{}, expectedSessionId string) {
-	timeout := 1 * time.Second
+	timeout := 5 * time.Second
 	foundSessions := make(chan string)
 	go func() {
 		for {

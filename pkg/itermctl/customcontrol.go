@@ -8,17 +8,17 @@ import (
 	"regexp"
 )
 
-type Escaper struct {
+type CustomControlSequenceEscaper struct {
 	identity string
 }
 
-// NewCustomEscaper creates an Escaper bound to the given identity.
-func NewCustomEscaper(identity string) *Escaper {
-	return &Escaper{identity: identity}
+// NewCustomControlSequenceEscaper creates an CustomControlSequenceEscaper bound to the given identity.
+func NewCustomControlSequenceEscaper(identity string) *CustomControlSequenceEscaper {
+	return &CustomControlSequenceEscaper{identity: identity}
 }
 
-// Escape wraps a format string in a Custom Control Sequence
-func (e *Escaper) Escape(format string, a ...interface{}) string {
+// Escape wraps a formatted string in a Custom Control Sequence
+func (e *CustomControlSequenceEscaper) Escape(format string, a ...interface{}) string {
 	return fmt.Sprintf("\033]1337;Custom=id=%s:%s\a",
 		e.identity, fmt.Sprintf(format, a...))
 }

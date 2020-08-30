@@ -25,10 +25,10 @@ const (
 )
 
 var (
-	Socket                           = "~/Library/ApplicationSupport/iTerm2/private/socket"
+	Socket                           = "~/Library/Application Support/iTerm2/private/socket"
 	Subprotocol                      = "api.iterm2.com"
 	AppName                          = "itermctl"
-	LibraryVersion                   = "itermctl 0.0.1"
+	LibraryVersion                   = "itermctl 0.0.3"
 	Origin                           = "ws://localhost/"
 	Url                              = url.URL{Scheme: "ws", Host: "localhost:1912"}
 	ErrNoKnobs                       = fmt.Errorf("no argument named 'knobs'")
@@ -69,6 +69,19 @@ func (r *receiver) Ch() <-chan *iterm2.ServerOriginatedMessage {
 	return r.ch
 }
 
+func (r *receiver) Name() string {
+	r.mx.Lock()
+	defer r.mx.Unlock()
+
+	return r.name
+}
+
+func (r *receiver) SetName(n string) {
+	r.mx.Lock()
+	defer r.mx.Unlock()
+	r.name = n
+}
+
 func (r *receiver) SetAcceptFunc(acceptFunc AcceptFunc) {
 	r.mx.Lock()
 	defer r.mx.Unlock()
@@ -80,7 +93,7 @@ func (r *receiver) SetAcceptFunc(acceptFunc AcceptFunc) {
 	r.acceptFunc = acceptFunc
 }
 
-func (r *receiver) accept(msg *iterm2.ServerOriginatedMessage) bool {
+func (r *receiver) Accept(msg *iterm2.ServerOriginatedMessage) bool {
 	r.mx.Lock()
 	defer r.mx.Unlock()
 	return r.acceptFunc(msg)
@@ -222,6 +235,8 @@ func NewConnection(ws *websocket.Conn) *Connection {
 					msg.Id = seq.MessageId.Next()
 				}
 
+				log.Debugf("message ID %d with submessage: %#v", msg.GetId(), msg.GetSubmessage())
+
 				if err := conn.write(msg); err != nil {
 					log.Error(err)
 				}
@@ -353,7 +368,7 @@ func (conn *Connection) GetResponse(ctx context.Context, req *iterm2.ClientOrigi
 
 	select {
 	case <-ctx.Done():
-		return nil, ctx.Err()
+		return nil, fmt.Errorf("wait response: %w", ctx.Err())
 	case resp := <-src:
 		if resp != nil {
 			if err := getServerError(resp); err != nil {
@@ -442,8 +457,7 @@ func (conn *Connection) Subscribe(ctx context.Context, req *iterm2.NotificationR
 		ctx = context.Background()
 	}
 
-	recvCtx, cancelRecv := context.WithCancel(context.Background())
-	recv, err := conn.NewReceiver(recvCtx,
+	recv, err := conn.NewReceiver(ctx,
 		fmt.Sprintf("receive %s", req.NotificationType.String()),
 		AcceptNotificationType(req.GetNotificationType()),
 	)
@@ -468,11 +482,6 @@ func (conn *Connection) Subscribe(ctx context.Context, req *iterm2.NotificationR
 	subscriptionErr := getSubscriptionStatusError(resp)
 	if subscriptionErr != nil {
 		if subscriptionErr == ErrAlreadySubscribed {
-			go func() {
-				defer cancelRecv()
-				<-ctx.Done()
-			}()
-
 			return recv, nil
 		}
 
@@ -480,7 +489,6 @@ func (conn *Connection) Subscribe(ctx context.Context, req *iterm2.NotificationR
 	}
 
 	go func() {
-		defer cancelRecv()
 		<-ctx.Done()
 
 		unsubReq := NewNotificationRequest(false, req.GetNotificationType(), req.GetSession())
@@ -550,16 +558,16 @@ func (r *receivers) send(msg *iterm2.ServerOriginatedMessage) {
 	}
 
 	for _, recv := range *r {
-		if !recv.accept(msg) {
-			log.Debugf("message ID %d: not accepted by %q", msg.GetId(), recv.name)
+		if !recv.Accept(msg) {
+			log.Debugf("message ID %d: not accepted by %q", msg.GetId(), recv.Name())
 			continue
 		}
 
 		select {
 		case recv.ch <- msg:
-			log.Debugf("message ID %d: sent to %q", msg.GetId(), recv.name)
+			log.Debugf("message ID %d: sent to %q", msg.GetId(), recv.Name())
 		case <-time.After(1 * time.Second):
-			log.Errorf("message ID %d: time out sending to %q", msg.GetId(), recv.name)
+			log.Errorf("message ID %d: time out sending to %q", msg.GetId(), recv.Name())
 		}
 	}
 }
