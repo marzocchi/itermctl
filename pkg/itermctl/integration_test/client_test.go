@@ -1,3 +1,5 @@
+// +build test_with_iterm
+
 package integration_test
 
 import (
@@ -136,7 +138,6 @@ func TestClient_Subscribe(t *testing.T) {
 		}
 		notificationsAfterCancel = append(notificationsAfterCancel, n)
 	}
-
 
 	if len(notificationsAfterCancel) > 0 {
 		t.Fatalf("expected no notification after context cancel, got %d", len(notificationsAfterCancel))

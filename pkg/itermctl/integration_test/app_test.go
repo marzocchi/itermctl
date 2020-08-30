@@ -1,3 +1,5 @@
+// +build test_with_iterm
+
 package integration_test
 
 import (
