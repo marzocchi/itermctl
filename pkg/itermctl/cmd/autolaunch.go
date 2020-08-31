@@ -12,7 +12,7 @@ import (
 	"strings"
 )
 
-const autolaunchDir = "~/Library/ApplicationSupport/iTerm2/Scripts/AutoLaunch"
+const autolaunchDir = "~/Library/Application Support/iTerm2/Scripts/AutoLaunch"
 
 var AutolaunchCommand = &cobra.Command{
 	Use:   "autolaunch",

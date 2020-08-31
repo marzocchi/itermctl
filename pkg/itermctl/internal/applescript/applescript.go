@@ -8,7 +8,7 @@ import (
 )
 
 func RunScript(script string) (string, error) {
-	cmd := exec.Command("osascript", "-")
+	cmd := exec.Command("/usr/bin/osascript", "-")
 	output := &bytes.Buffer{}
 	cmd.Stdin = strings.NewReader(script)
 	cmd.Stdout = output
