@@ -14,12 +14,7 @@ func TestPromptMonitor(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	promptNotifications, err := conn.MonitorPrompts(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	testWindowResp, err := app.CreateTab("", 0, "")
+	testWindowResp, err := app.CreateTab("", 0, profileName)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -30,6 +25,11 @@ func TestPromptMonitor(t *testing.T) {
 			t.Fatal(err)
 		}
 	}()
+
+	promptNotifications, err := conn.MonitorPrompts(ctx, testWindowResp.GetSessionId())
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	session, err := app.Session(testWindowResp.GetSessionId())
 	if err != nil {
@@ -70,7 +70,7 @@ func collectPrompts(src <-chan *iterm2.PromptNotification, sessionId string, max
 
 	for {
 		select {
-		case <-time.After(2 * time.Second):
+		case <-time.After(5 * time.Second):
 			t.Fatalf("timed out (prompts received: %d)", len(prompts))
 		case prompt, ok := <-src:
 			if !ok {

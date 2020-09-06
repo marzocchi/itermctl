@@ -88,7 +88,7 @@ func TestApp_CreateTab_CloseTab(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	resp, err := app.CreateTab(testWindowResp.GetWindowId(), 0, "")
+	resp, err := app.CreateTab(testWindowResp.GetWindowId(), 0, profileName)
 	if err != nil {
 		t.Fatal(err)
 	}
