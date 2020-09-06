@@ -10,7 +10,7 @@ import (
 // the given context is done or the Connection is shutdown. Note that iTerm2 can only detect prompts when shell
 // integration is installed.
 // See https://iterm2.com/python-api/prompt.html#iterm2.PromptMonitor.
-func (conn *Connection) MonitorPrompts(ctx context.Context, modes ...iterm2.PromptMonitorMode) (<-chan *iterm2.PromptNotification, error) {
+func (conn *Connection) MonitorPrompts(ctx context.Context, sessionId string, modes ...iterm2.PromptMonitorMode) (<-chan *iterm2.PromptNotification, error) {
 	if len(modes) == 0 {
 		modes = []iterm2.PromptMonitorMode{
 			iterm2.PromptMonitorMode_COMMAND_START,

@@ -10,26 +10,6 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v2
 
-      - name: Set iTerm2's config
-        run: |
-          iterm_dir="$HOME/Library/Application Support/iTerm2"
-          magic_file_path="$iterm_dir/disable-automation-auth"
-
-          mkdir -p "$iterm_dir"
-          chmod +x ./.github/workflows/disable-auth.py
-          ./.github/workflows/disable-auth.py "$magic_file_path"
-          sudo chown root "$magic_file_path"
-
-          echo "disable-automation-auth file created at $magic_file_path"
-          echo "with content:"
-          cat "$magic_file_path"
-
-          defaults write com.googlecode.iterm2 EnableAPIServer 1
-
-      - name: Install shell integration
-        run: |
-          curl -L https://iterm2.com/shell_integration/install_shell_integration.sh | bash
-
       - name: Download and start iTerm2
         run: |
           tmp_zip=$(mktemp -u iterm.zip.XXXXXXX)
@@ -37,26 +17,6 @@ jobs:
           unzip "$tmp_zip"
           mv iTerm.app /Applications/iTerm.app
 
-          open /Applications/iTerm.app
-          killall iTerm2
-          defaults write com.googlecode.iterm2 StartDebugLoggingAutomatically 1
-          open /Applications/iTerm.app
-
-          socket_path="$HOME/Library/Application Support/iTerm2/private/socket"
-          i=0
-          while ! test -S "$socket_path"
-          do
-            if [ $i -gt 30 ]; then
-              echo no socket at $socket_path in $i seconds
-              exit 1
-            fi
-            sleep 1
-            ((i=i+1))
-          done
-          echo socket ready'!'
-          ls -l "$(dirname "$socket_path")"
-
       - name: Run tests
         run: |
-          ITERMCTL_LOG_LEVEL=fatal go test -v -timeout 120s -race -count=1 -tags test_with_iterm \
-            mrz.io/itermctl/pkg/itermctl/...
+          ITERMCTL_LOG_LEVEL=fatal make integration_test

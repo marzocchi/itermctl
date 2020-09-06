@@ -15,9 +15,13 @@ import (
 var conn *itermctl.Connection
 var app *itermctl.App
 
+const profileName = "itermctl test profile"
+
+
 func TestMain(m *testing.M) {
-	itermctl.WaitResponseTimeout = 20 * time.Second
 	var err error
+
+	itermctl.WaitResponseTimeout = 20 * time.Second
 	conn, err = itermctl.GetCredentialsAndConnect("itermctl_integration_test", true)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
@@ -93,7 +97,7 @@ func TestClient_Subscribe(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	window1Resp, err := app.CreateTab("", 0, "")
+	window1Resp, err := app.CreateTab("", 0, profileName)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,7 +120,7 @@ func TestClient_Subscribe(t *testing.T) {
 
 	cancel()
 
-	window2Resp, err := app.CreateTab("", 0, "")
+	window2Resp, err := app.CreateTab("", 0, profileName)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -1,0 +1,13 @@
+{
+  "Profiles": [
+    {
+      "Name": "itermctl test profile",
+      "Guid": "0365D7C9-AD5C-4957-8FFF-DB296B96EF0C",
+      "Badge Text": "An itermctl test run is in progress...!",
+      "Silence Bell": true,
+      "Prompt Before Closing 2": false,
+      "Command": "STARTUP_COMMAND",
+      "Custom Command": "Yes"
+    }
+  ]
+}

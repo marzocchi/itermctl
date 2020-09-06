@@ -18,7 +18,7 @@ func TestNewSessionMonitor(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	testWindowResp, err := app.CreateTab("", 0, "")
+	testWindowResp, err := app.CreateTab("", 0, profileName)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,7 +44,7 @@ func TestTerminateSessionMonitor(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	testWindowResp, err := app.CreateTab("", 0, "")
+	testWindowResp, err := app.CreateTab("", 0, profileName)
 	if err != nil {
 		t.Fatal(err)
 	}
