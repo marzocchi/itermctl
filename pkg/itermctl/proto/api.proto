@@ -114,6 +114,16 @@ message InvokeFunctionRequest {
   message App {
   }
   message Method {
+    // The following methods are defined:
+    // window.set_title(title: String)
+    // session.set_name(name: String)
+    // session.run_tmux_command(command: String) throws  // Throws an exception if this is not a tmux session
+    // session.set_status_bar_component_unread_count(identifier: String, count: Int)
+    // session.stop_coprocess() -> Bool  // returns whether there was a coprocess to stop
+    // session.get_coprocess() -> String?  // returns the name of the command, or nil
+    // session.run_coprocess(commandLine: String, mute: Bool) -> Bool  // returns whether it attempted to start the coprocess. It'll fail only if there is already a coprocess.
+    // tab.set_title(title: String)
+    // tab.select_pane_in_direction(direction: String) throws -> String  // direction is 'left', 'right', 'above', or 'below'. If successful, it will return the ID of the newly active session. If you can't go that way, it returns null. Throws an exception if the direction is invalid.
     optional string receiver = 1;
   }
   oneof context {
@@ -781,6 +791,7 @@ message RPCRegistrationRequest {
     GENERIC = 1;
     SESSION_TITLE = 2;
     STATUS_BAR_COMPONENT = 3;
+    CONTEXT_MENU = 4;
   }
   optional Role role = 5 [default=GENERIC];
 
@@ -825,12 +836,18 @@ message RPCRegistrationRequest {
     repeated Icon icons = 7;
   }
 
+  message ContextMenuAttributes {
+    optional string display_name = 1;
+    optional string unique_identifier = 2;
+  }
+
   oneof RoleSpecificAttributes {
     SessionTitleAttributes session_title_attributes = 7;
     StatusBarComponentAttributes status_bar_component_attributes = 8;
+    ContextMenuAttributes context_menu_attributes = 9;
   }
 
-  optional string display_name = 6 [deprecated=true];
+  optional string display_name = 6 [deprecated = true];
 }
 
 message RegisterToolResponse {

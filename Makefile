@@ -1,4 +1,4 @@
-.PHONY: integration_test prepare_environment prepare_profile
+.PHONY: integration_test prepare_environment prepare_profile get_proto
 
 ITERM_DIR="$(HOME)/Library/Application Support/iTerm2"
 
@@ -25,3 +25,12 @@ prepare_profile:
 
 integration_test: prepare_environment prepare_profile
 	go test -race -count=1 -v -tags test_with_iterm mrz.io/itermctl/pkg/...
+
+get_proto:
+	rm pkg/itermctl/proto/api.proto || true
+	curl -L https://raw.githubusercontent.com/gnachman/iTerm2/master/proto/api.proto > pkg/itermctl/proto/api.proto
+
+pkg/itermctl/proto/api.pb.go: get_proto pkg/itermctl/proto/api.proto
+	rm pkg/itermctl/proto/api.pb.go || true
+	protoc --go_out=. pkg/itermctl/proto/api.proto
+
