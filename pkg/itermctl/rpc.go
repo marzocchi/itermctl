@@ -81,6 +81,18 @@ type TitleProvider struct {
 	Rpc Rpc
 }
 
+// ContextMenuProvider add an item to iTerm2's context menu; selecting the menu item causes the Rpc to be invoked.
+type ContextMenuProvider struct {
+	// DisplayName is the menu item's name.
+	DisplayName string
+
+	// Identifier is the unique identifier for the provider. Use reverse domain name notation.
+	Identifier string
+
+	// Rpc is invoked when the user selects the menu item; the return value is ignored.
+	Rpc Rpc
+}
+
 // RpcInvocation contains all the arguments of the current invocation of a RpcFunc.
 type RpcInvocation struct {
 	requestId string
@@ -305,8 +317,39 @@ func (conn *Connection) registerClickHandler(ctx context.Context, cmp StatusBarC
 	return nil
 }
 
-// RegisterSessionTitleProvider registers a Session Title Provider. Registration lasts until the context is  canceled
-// or the conn's connection shuts down.
+// RegisterContextMenuProvider registers a ContextMenuProvider for sessions. Registration lasts until the context is
+// canceled or the connection shuts down.
+func (conn *Connection) RegisterContextMenuProvider(ctx context.Context, cm ContextMenuProvider) error {
+	req := newRegistrationRequest(iterm2.RPCRegistrationRequest_CONTEXT_MENU, cm.Rpc)
+
+	req.GetRpcRegistrationRequest().RoleSpecificAttributes = &iterm2.RPCRegistrationRequest_ContextMenuAttributes_{
+		ContextMenuAttributes: &iterm2.RPCRegistrationRequest_ContextMenuAttributes{
+			DisplayName:      &cm.DisplayName,
+			UniqueIdentifier: &cm.Identifier,
+		},
+	}
+
+	recv, err := conn.Subscribe(ctx, req)
+	if err != nil {
+		return fmt.Errorf("register Context Menu Provider: %s", err)
+	}
+
+	recv.SetName(fmt.Sprintf("receive Context Menu Provider %s, RPC: %s", cm.Identifier, cm.Rpc.Name))
+	recv.SetAcceptFunc(acceptRpc(cm.Rpc))
+
+	go func() {
+		for msg := range recv.Ch() {
+			rpcNotification := msg.GetNotification().GetServerOriginatedRpcNotification()
+			args := getInvocationArguments(ctx, conn, rpcNotification)
+			invoke(conn, cm.Rpc, args)
+		}
+	}()
+
+	return nil
+}
+
+// RegisterSessionTitleProvider registers a TitleProvider for sessions. Registration lasts until the context is canceled
+// or the connection is shut down.
 // See https://www.iterm2.com/python-api/registration.html#iterm2.registration.TitleProviderRPC.
 func (conn *Connection) RegisterSessionTitleProvider(ctx context.Context, tp TitleProvider) error {
 	req := newRegistrationRequest(iterm2.RPCRegistrationRequest_SESSION_TITLE, tp.Rpc)
@@ -322,7 +365,7 @@ func (conn *Connection) RegisterSessionTitleProvider(ctx context.Context, tp Tit
 		return fmt.Errorf("register title provider: %s", err)
 	}
 
-	recv.SetName(fmt.Sprintf("receive TP %s, rpc: %s", tp.Identifier, tp.Rpc.Name))
+	recv.SetName(fmt.Sprintf("receive Title Provider %s, RPC: %s", tp.Identifier, tp.Rpc.Name))
 	recv.SetAcceptFunc(acceptRpc(tp.Rpc))
 
 	go func() {

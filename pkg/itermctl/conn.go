@@ -11,7 +11,7 @@ import (
 	"mrz.io/itermctl/pkg/itermctl/auth"
 	"mrz.io/itermctl/pkg/itermctl/env"
 	"mrz.io/itermctl/pkg/itermctl/internal/seq"
-	"mrz.io/itermctl/pkg/itermctl/proto"
+	iterm2 "mrz.io/itermctl/pkg/itermctl/proto"
 	"net"
 	"net/http"
 	"net/url"
@@ -236,8 +236,6 @@ func NewConnection(ws *websocket.Conn) *Connection {
 				if msg.GetId() == 0 {
 					msg.Id = seq.MessageId.Next()
 				}
-
-				log.Debugf("message ID %d with submessage: %#v", msg.GetId(), msg.GetSubmessage())
 
 				if err := conn.write(msg); err != nil {
 					log.Error(err)

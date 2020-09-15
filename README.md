@@ -6,7 +6,8 @@ CLI interface and Go client library for iTerm2's API.
 Client library coverage
 ===
 
-- [RPC](examples/rpc.go), [Status Bar Component](examples/statusbar.go), [Session Title Provider](examples/sessiontitle.go)
+- [RPC](examples/rpc.go), [Status Bar Component](examples/statusbar.go), [Session Title Provider](examples/sessiontitle.go),
+  [Context Menu Provider](examples/contextmenu.go)
 - [Session Monitor](examples/lifecycle.go)
 - [Prompt Monitor](examples/lifecycle.go)
 - [Keystrokes Monitor](examples/keystrokes.go)
