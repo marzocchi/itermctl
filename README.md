@@ -9,6 +9,7 @@ Client library coverage
 - [RPC](examples/rpc.go), [Status Bar Component](examples/statusbar.go), [Session Title Provider](examples/sessiontitle.go),
   [Context Menu Provider](examples/contextmenu.go)
 - [Session Monitor](examples/lifecycle.go)
+- [Focus Monitor](examples/focus.go)
 - [Prompt Monitor](examples/lifecycle.go)
 - [Keystrokes Monitor](examples/keystrokes.go)
 - [Screen Monitor](examples/screenstreamer.go)

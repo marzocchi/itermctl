@@ -2,12 +2,12 @@ package itermctl
 
 import (
 	"context"
-	iterm2 "mrz.io/itermctl/pkg/itermctl/proto"
+	"mrz.io/itermctl/pkg/itermctl/iterm2"
 )
 
 // MonitorNewSessions subscribes to NewSessionNotifications and forwards each one to the returned channel, until the
 // given context is done or the Connection is shutdown.
-func (conn *Connection) MonitorNewSessions(ctx context.Context) (<-chan *iterm2.NewSessionNotification, error) {
+func MonitorNewSessions(ctx context.Context, conn *Connection) (<-chan *iterm2.NewSessionNotification, error) {
 	req := NewNotificationRequest(true, iterm2.NotificationType_NOTIFY_ON_NEW_SESSION, "")
 	recv, err := conn.Subscribe(ctx, req)
 
@@ -32,7 +32,7 @@ func (conn *Connection) MonitorNewSessions(ctx context.Context) (<-chan *iterm2.
 
 // MonitorSessionsTermination subscribes to TerminateSessionNotification and writes each one to the returned channel,
 // until the given context is done or the Connection is shutdown.
-func (conn *Connection) MonitorSessionsTermination(ctx context.Context) (<-chan *iterm2.TerminateSessionNotification, error) {
+func MonitorSessionsTermination(ctx context.Context, conn *Connection) (<-chan *iterm2.TerminateSessionNotification, error) {
 	req := NewNotificationRequest(true, iterm2.NotificationType_NOTIFY_ON_TERMINATE_SESSION, "")
 	recv, err := conn.Subscribe(ctx, req)
 

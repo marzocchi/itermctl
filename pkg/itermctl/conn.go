@@ -11,7 +11,7 @@ import (
 	"mrz.io/itermctl/pkg/itermctl/auth"
 	"mrz.io/itermctl/pkg/itermctl/env"
 	"mrz.io/itermctl/pkg/itermctl/internal/seq"
-	iterm2 "mrz.io/itermctl/pkg/itermctl/proto"
+	"mrz.io/itermctl/pkg/itermctl/iterm2"
 	"net"
 	"net/http"
 	"net/url"
@@ -25,13 +25,13 @@ const (
 )
 
 var (
-	Socket                           = "~/Library/Application Support/iTerm2/private/socket"
-	Subprotocol                      = "api.iterm2.com"
-	AppName                          = "itermctl"
-	LibraryVersion                   = "itermctl 0.0.3"
-	Origin                           = "ws://localhost/"
-	Url                              = url.URL{Scheme: "ws", Host: "localhost:1912"}
-	ErrNoKnobs                       = fmt.Errorf("no argument named 'knobs'")
+	Socket         = "~/Library/Application Support/iTerm2/private/socket"
+	Subprotocol    = "api.iterm2.com"
+	AppName        = "itermctl"
+	LibraryVersion = "itermctl 0.0.3"
+	Origin         = "ws://localhost/"
+	Url            = url.URL{Scheme: "ws", Host: "localhost:1912"}
+
 	ErrClosed                        = fmt.Errorf("connection is closed")
 	ErrSessionNotFound               = fmt.Errorf("NotificationResponse_SESSION_NOT_FOUND")
 	ErrRequestMalformed              = fmt.Errorf("NotificationResponse_REQUEST_MALFORMED")
@@ -39,7 +39,6 @@ var (
 	ErrAlreadySubscribed             = fmt.Errorf("NotificationResponse_ALREADY_SUBSCRIBED")
 	ErrDuplicatedServerOriginatedRpc = fmt.Errorf("NotificationResponse_DUPLICATE_SERVER_ORIGINATED_RPC")
 	ErrInvalidIdentifier             = fmt.Errorf("NotificationResponse_INVALID_IDENTIFIER")
-	WaitResponseTimeout              = 5 * time.Second
 )
 
 func init() {
@@ -116,6 +115,43 @@ func acceptMessageId(msgId int64) AcceptFunc {
 	return func(msg *iterm2.ServerOriginatedMessage) bool {
 		return msg.GetId() == msgId
 	}
+}
+
+type Transaction struct {
+	cancelFunc context.CancelFunc
+	errCh      chan error
+}
+
+func newTransaction(ctx context.Context, conn *Connection) *Transaction {
+	ctx, cancel := context.WithCancel(ctx)
+
+	tx := &Transaction{
+		cancelFunc: cancel,
+		errCh:      make(chan error),
+	}
+
+	go func() {
+		<-ctx.Done()
+		begin := false
+		endMessage := &iterm2.ClientOriginatedMessage{
+			Submessage: &iterm2.ClientOriginatedMessage_TransactionRequest{
+				TransactionRequest: &iterm2.TransactionRequest{Begin: &begin},
+			},
+		}
+
+		if _, err := conn.GetResponse(context.Background(), endMessage); err != nil {
+			tx.errCh <- fmt.Errorf("end transaction: %w", err)
+		}
+
+		close(tx.errCh)
+	}()
+
+	return tx
+}
+
+func (t *Transaction) End() error {
+	t.cancelFunc()
+	return <-t.errCh
 }
 
 // GetCredentialsAndConnect checks if iTerm2 is configured to require authentication, retrieves the cookie and key if
@@ -255,7 +291,7 @@ func NewConnection(ws *websocket.Conn) *Connection {
 		receivers.close()
 
 		if err := conn.websocket.Close(); err != nil {
-			log.Errorf("close: %s", err)
+			log.Errorf("sendCloseRequest: %s", err)
 		}
 	}()
 
@@ -305,7 +341,7 @@ func (conn *Connection) Wait() {
 	<-conn.closeCtx.Done()
 }
 
-// Close initiates the connection's shutdown, causing all the receivers channels to be closed. It will also close the
+// Close initiates the connection's shutdown, causing all the receivers channels to be closed. It will also sendCloseRequest the
 // underlying websocket.
 func (conn *Connection) Close() {
 	conn.closeFunc()
@@ -354,25 +390,22 @@ func (conn *Connection) Send(msg *iterm2.ClientOriginatedMessage) error {
 	return nil
 }
 
-// GetResponse sends a message to iTerm2, and waits up to WaitResponseTimeout for a message to be read from src and
-// returns it. If the message is an error from iTerm2, a nil message and an error are returned. A nil message with an
-// error will also be returned if WaitResponseTimeout expires before a message is received.
+// GetResponse sends a message to iTerm2, and waits for a message to be read from src and returns it. If the message is
+// an error from iTerm2, a nil message and an error are returned. A nil message with an error will also be returned if
+// the context is canceled before the response is received.
 func (conn *Connection) GetResponse(ctx context.Context, req *iterm2.ClientOriginatedMessage) (*iterm2.ServerOriginatedMessage, error) {
 	src, err := conn.request(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("get response: %w", err)
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, WaitResponseTimeout)
-	defer cancel()
-
 	select {
 	case <-ctx.Done():
-		return nil, fmt.Errorf("wait response: %w", ctx.Err())
+		return nil, fmt.Errorf("get response: %w", ctx.Err())
 	case resp := <-src:
 		if resp != nil {
-			if err := getServerError(resp); err != nil {
-				return nil, err
+			if resp.GetError() != "" {
+				return nil, fmt.Errorf("get response: %s", resp.GetError())
 			}
 		}
 		return resp, nil
@@ -520,11 +553,29 @@ func (conn *Connection) unsubscribe(req *iterm2.NotificationRequest) error {
 	return getSubscriptionStatusError(resp)
 }
 
-func getServerError(msg *iterm2.ServerOriginatedMessage) error {
-	if msg.GetError() != "" {
-		return fmt.Errorf("error response for message ID %d: %s", msg.GetId(), msg.GetError())
+// Transaction start a transaction, a sequence of API calls can occur without anything else happening in between.
+// Note that this effectively freezes iTerm2 until Transaction.End is called.
+// See https://iterm2.com/python-api/transaction.html.
+func (conn *Connection) Transaction() (*Transaction, error) {
+	begin := true
+	beginMessage := &iterm2.ClientOriginatedMessage{
+		Submessage: &iterm2.ClientOriginatedMessage_TransactionRequest{
+			TransactionRequest: &iterm2.TransactionRequest{Begin: &begin},
+		},
 	}
-	return nil
+
+	ctx := context.Background()
+
+	resp, err := conn.GetResponse(ctx, beginMessage)
+	if err != nil {
+		return nil, fmt.Errorf("begin transaction: %w", err)
+	}
+
+	if resp.GetTransactionResponse().GetStatus() != iterm2.TransactionResponse_OK {
+		return nil, fmt.Errorf("begin transaction: %s", resp.GetTransactionResponse().GetStatus().String())
+	}
+
+	return newTransaction(ctx, conn), nil
 }
 
 // NewNotificationRequest creates a notification request to subscribe or unsubscribe for the given notification

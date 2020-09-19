@@ -6,7 +6,8 @@ import (
 	"context"
 	"fmt"
 	"mrz.io/itermctl/pkg/itermctl"
-	iterm2 "mrz.io/itermctl/pkg/itermctl/proto"
+	"mrz.io/itermctl/pkg/itermctl/iterm2"
+	"mrz.io/itermctl/pkg/itermctl/rpc"
 	"os"
 	"testing"
 	"time"
@@ -17,11 +18,9 @@ var app *itermctl.App
 
 const profileName = "itermctl test profile"
 
-
 func TestMain(m *testing.M) {
 	var err error
 
-	itermctl.WaitResponseTimeout = 20 * time.Second
 	conn, err = itermctl.GetCredentialsAndConnect("itermctl_integration_test", true)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
@@ -48,10 +47,10 @@ func TestClient_CloseConnectionDuringGetResponse(t *testing.T) {
 
 	funcName := "itermctl_test_sleep_func"
 
-	err = conn.RegisterRpc(context.Background(), itermctl.Rpc{
+	err = rpc.Register(context.Background(), conn, rpc.RPC{
 		Name: funcName,
 		Args: nil,
-		F: func(args *itermctl.RpcInvocation) (interface{}, error) {
+		Function: func(args *rpc.Invocation) (interface{}, error) {
 			<-time.After(1 * time.Second)
 			return nil, nil
 		},
@@ -102,7 +101,7 @@ func TestClient_Subscribe(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() {
-		err = app.CloseWindow(true, window1Resp.GetWindowId())
+		err = app.CloseTerminalWindow(true, window1Resp.GetWindowId())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -125,7 +124,7 @@ func TestClient_Subscribe(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() {
-		err = app.CloseWindow(true, window2Resp.GetWindowId())
+		err = app.CloseTerminalWindow(true, window2Resp.GetWindowId())
 		if err != nil {
 			t.Fatal(err)
 		}

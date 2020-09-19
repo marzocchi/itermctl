@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/sirupsen/logrus"
-	"mrz.io/itermctl/pkg/itermctl/proto"
+	"mrz.io/itermctl/pkg/itermctl/iterm2"
 	"regexp"
 )
 
@@ -33,7 +33,7 @@ type CustomControlSequenceNotification struct {
 // closed. An identity is a secret shared between the conn and iTerm2 and is required as a security mechanism. Note that
 // filtering against unknown identities is done here on the client side.
 // See https://www.iterm2.com/python-api/customcontrol.html.
-func (conn *Connection) MonitorCustomControlSequences(ctx context.Context, identity string, re *regexp.Regexp, sessionId string) (<-chan CustomControlSequenceNotification, error) {
+func MonitorCustomControlSequences(ctx context.Context, conn *Connection, identity string, re *regexp.Regexp, sessionId string) (<-chan CustomControlSequenceNotification, error) {
 	notifications := make(chan CustomControlSequenceNotification)
 
 	req := NewNotificationRequest(true, iterm2.NotificationType_NOTIFY_ON_CUSTOM_ESCAPE_SEQUENCE, sessionId)

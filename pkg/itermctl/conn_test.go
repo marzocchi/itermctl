@@ -2,7 +2,7 @@ package itermctl
 
 import (
 	"fmt"
-	iterm2 "mrz.io/itermctl/pkg/itermctl/proto"
+	"mrz.io/itermctl/pkg/itermctl/iterm2"
 	"sync"
 	"testing"
 )

@@ -1,4 +1,4 @@
-package itermctl
+package rpc
 
 import (
 	"testing"
@@ -17,7 +17,7 @@ func TestRpcInvocation_Args(t *testing.T) {
 		"some_float":  "42.1",
 	}
 
-	args := RpcInvocation{args: inputArgs}
+	args := Invocation{args: inputArgs}
 
 	expected := &argsStruct{
 		SomeBool:   true,
@@ -46,7 +46,7 @@ func TestRpcInvocation_Knobs(t *testing.T) {
 		"knobs": "\"{\\\"some_bool\\\": true, \\\"some_string\\\": \\\"string\\\", \\\"some_float\\\": 42.1}\"",
 	}
 
-	args := RpcInvocation{args: inputArgs}
+	args := Invocation{args: inputArgs}
 
 	expected := &knobsStruct{
 		SomeBool:   true,

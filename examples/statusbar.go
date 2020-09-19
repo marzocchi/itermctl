@@ -4,13 +4,14 @@ import (
 	"context"
 	"fmt"
 	"mrz.io/itermctl/pkg/itermctl"
+	"mrz.io/itermctl/pkg/itermctl/rpc"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 )
 
-var Clock = itermctl.StatusBarComponent{
+var Clock = rpc.StatusBarComponent{
 	ShortDescription: "Example UpdateClock",
 	Description:      "Example UpdateClock",
 	Exemplar:         "2020-08-16 19:30:08 +0200 CEST",
@@ -18,9 +19,9 @@ var Clock = itermctl.StatusBarComponent{
 	Identifier:       "io.mrz.itermctl.example.clock",
 	Knobs:            ClockKnobs{Location: "UTC"},
 	OnClick:          OnClick,
-	Rpc: itermctl.Rpc{
-		Name: "itermctl_example_clock",
-		F:    UpdateClock,
+	RPC: rpc.RPC{
+		Name:     "itermctl_example_clock",
+		Function: UpdateClock,
 	},
 }
 
@@ -28,7 +29,7 @@ type ClockKnobs struct {
 	Location string
 }
 
-func UpdateClock(invocation *itermctl.RpcInvocation) (interface{}, error) {
+func UpdateClock(invocation *rpc.Invocation) (interface{}, error) {
 	knobs := &ClockKnobs{}
 	err := invocation.Knobs(knobs)
 	if err != nil {
@@ -41,8 +42,8 @@ func UpdateClock(invocation *itermctl.RpcInvocation) (interface{}, error) {
 	return fmt.Sprintf("%s", now.Round(1*time.Second)), nil
 }
 
-func OnClick(invocation *itermctl.RpcInvocation) (interface{}, error) {
-	args := itermctl.ClickArgs{}
+func OnClick(invocation *rpc.Invocation) (interface{}, error) {
+	args := rpc.ClickArgs{}
 	if err := invocation.Args(&args); err != nil {
 		return nil, fmt.Errorf("click handler: %w", err)
 	}
@@ -70,7 +71,7 @@ func main() {
 		conn.Close()
 	}()
 
-	err = conn.RegisterStatusBarComponent(context.Background(), Clock)
+	err = rpc.RegisterStatusBarComponent(context.Background(), conn, Clock)
 	if err != nil {
 		panic(err)
 	}

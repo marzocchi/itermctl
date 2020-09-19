@@ -10,7 +10,7 @@ import (
 )
 
 func main() {
-	conn, err := itermctl.GetCredentialsAndConnect("itermctl_keystrokes_example", true)
+	conn, err := itermctl.GetCredentialsAndConnect("itermctl_focus_example", true)
 	if err != nil {
 		panic(err)
 	}
@@ -23,16 +23,12 @@ func main() {
 		conn.Close()
 	}()
 
-	keystrokes, err := itermctl.MonitorKeystrokes(context.Background(), conn, itermctl.AllSessions)
+	notifications, err := itermctl.MonitorFocus(context.Background(), conn)
 	if err != nil {
 		panic(err)
 	}
 
-	go func() {
-		for ks := range keystrokes {
-			fmt.Printf("typed: %s\n", ks.GetCharacters())
-		}
-	}()
-
-	conn.Wait()
+	for notification := range notifications {
+		fmt.Printf("%s %s\n", notification.Which, notification.Id)
+	}
 }

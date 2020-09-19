@@ -4,7 +4,8 @@ package integration_test
 
 import (
 	"context"
-	iterm2 "mrz.io/itermctl/pkg/itermctl/proto"
+	"mrz.io/itermctl/pkg/itermctl"
+	"mrz.io/itermctl/pkg/itermctl/iterm2"
 	"testing"
 	"time"
 )
@@ -13,7 +14,7 @@ func TestNewSessionMonitor(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	newSessions, err := conn.MonitorNewSessions(ctx)
+	newSessions, err := itermctl.MonitorNewSessions(ctx, conn)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -24,7 +25,7 @@ func TestNewSessionMonitor(t *testing.T) {
 	}
 
 	defer func() {
-		err = app.CloseWindow(true, testWindowResp.GetWindowId())
+		err = app.CloseTerminalWindow(true, testWindowResp.GetWindowId())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -39,7 +40,7 @@ func TestTerminateSessionMonitor(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	closedSessions, err := conn.MonitorSessionsTermination(ctx)
+	closedSessions, err := itermctl.MonitorSessionsTermination(ctx, conn)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,9 +50,9 @@ func TestTerminateSessionMonitor(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	session, err := app.Session(testWindowResp.GetSessionId())
-	if err != nil {
-		t.Fatal(err)
+	session := app.Session(testWindowResp.GetSessionId())
+	if session == nil {
+		t.Fatalf("no session: %s", testWindowResp.GetSessionId())
 	}
 
 	err = session.SendText("exit\n", false)

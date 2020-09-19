@@ -39,9 +39,9 @@ var SendTextCommand = &cli.NestedCommand{
 				return err
 			}
 
-			session, err := app.Session(args[0])
-			if err != nil {
-				return err
+			session := app.Session(args[0])
+			if session == nil {
+				panic(fmt.Sprintf("no session: %s", args[0]))
 			}
 
 			if err := session.SendText(string(data), suppressBroadcast); err != nil {
@@ -69,10 +69,7 @@ var ListSessionsCommand = &cli.NestedCommand{
 				return err
 			}
 
-			activeSessionId, err := app.ActiveSessionId()
-			if err != nil {
-				return err
-			}
+			activeSessionId := app.ActiveSession().Id()
 
 			tw := tabwriter.NewWriter(os.Stdout, 0, 8, 1, ' ', 0)
 			for _, w := range sessionsResponse.GetWindows() {
@@ -147,9 +144,9 @@ var SplitPanesCommand = &cli.NestedCommand{
 				sessionId = shellSession.SessionId
 			}
 
-			session, err := app.Session(sessionId)
-			if err != nil {
-				return err
+			session := app.Session(sessionId)
+			if session == nil {
+				panic(fmt.Sprintf("no session: %s", sessionId))
 			}
 
 			sessionIds, err := session.SplitPane(vertical, before)

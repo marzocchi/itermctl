@@ -1,43 +1,40 @@
-package itermctl
+package rpc
 
 import (
 	"context"
 	"fmt"
 	"github.com/sirupsen/logrus"
+	"mrz.io/itermctl/pkg/itermctl"
 	"mrz.io/itermctl/pkg/itermctl/internal/json"
-	"mrz.io/itermctl/pkg/itermctl/proto"
+	"mrz.io/itermctl/pkg/itermctl/iterm2"
 	"reflect"
 	"strings"
 )
 
-// Rpc is a function that can be registered with iTerm2 using RegisterRpc and will be invoked in response to some
-// action or event, such as a keypress or a trigger.
-type Rpc struct {
+var ErrNoKnobs = fmt.Errorf("no argument named 'knobs'")
+
+// A RPC can be registered as an iTerm2 RPC using Register and will be invoked in response to some action or
+// event, such as a keypress or a trigger.
+type RPC struct {
 	// Name is the function's name and makes up the function signature, together with Args.
 	Name string
 
-	// Args define the function's expected arguments, given as a struct or *struct. Only fields of type bool, string and
+	// Args define the RPC's expected arguments, given as a struct or *struct. Only fields of type bool, string and
 	// float64 are considered, while fields of other types will be ignored. Each field can also be annotated with
 	// arg.name and arg.ref to provide the argument's name and a default value as a reference to an iTerm2's built-in
-	// variable. If there's no arg.name tag, the value of the json tag or the struct field in lower case are used as a
-	// fallback.
-	// See https://www.iterm2.com/documentation-variables.html.
+	// variable. If there's no arg.name tag, the value of the json tag or the struct field in lower case is used as a
+	// fallback. See https://www.iterm2.com/documentation-variables.html.
 	Args interface{}
 
-	// F is the Rpc function implementation.
-	F RpcFunc
+	// The Function responds to each RPC's Invocation.
+	Function Function
 }
 
-// RpcFunc is the implementation of an Rpc function.
-type RpcFunc func(invocation *RpcInvocation) (interface{}, error)
+// A Function responds to a RPC's invocations by performing some operation and/or returning a value.
+type Function func(invocation *Invocation) (interface{}, error)
 
-type ClickArgs struct {
-	SessionId string `arg.name:"session_id"`
-}
-
-type statusBarComponentIdentifierValueKey string
-
-// See https://iterm2.com/python-api/statusbar.html.
+// A StatusBarComponent describes a script-provided status bar component showing a text value provided by a
+// user-provided RPC. See https://iterm2.com/python-api/statusbar.html.
 type StatusBarComponent struct {
 	// ShortDescription is shown below the component in the picker UI.
 	ShortDescription string
@@ -48,7 +45,7 @@ type StatusBarComponent struct {
 	// Exemplar is the sample content of the component shown in the picker UI.
 	Exemplar string
 
-	// UpdateCadence defines how frequently iTerm2 should invoke the component's Rpc. Zero disables updates.
+	// UpdateCadence defines how frequently iTerm2 should invoke the component's RPC. Zero disables updates.
 	UpdateCadence float32
 
 	// Identifier is the unique identifier for the component. Use reverse domain name notation.
@@ -61,14 +58,22 @@ type StatusBarComponent struct {
 	// TODO support for color knobs.
 	Knobs interface{}
 
-	// Rpc is the implementation of the component.
-	Rpc Rpc
+	// The RPC is invoked by iTerm2 to get the Component's value.
+	RPC RPC
 
-	OnClick RpcFunc
+	// OnClick responds to user's clicks on the Component's area in the status bar; it's return value is ignored.
+	OnClick Function
 }
 
-// TitleProvider is an Rpc that gets called to compute the title of a session, as frequently as iTerm2 deems necessary,
-// for example when any argument that is a reference to a variable in the session's context changes.
+type statusBarComponentIdentifierValueKey string
+
+// ClickArgs describes the arguments for the OnClick Function.
+type ClickArgs struct {
+	SessionId string `arg.name:"session_id"`
+}
+
+// TitleProvider is an RPC that gets called to compute the title of a session, as frequently as iTerm2 deems
+// necessary, for example when any argument that is a reference to a variable in the session's context changes.
 // See https://iterm2.com/python-api/registration.html#iterm2.registration.TitleProviderRPC.
 type TitleProvider struct {
 	// DisplayName is shown in the title provider's drop down in a profile's preference panel.
@@ -77,11 +82,11 @@ type TitleProvider struct {
 	// Identifier is the unique identifier for the provider. Use reverse domain name notation.
 	Identifier string
 
-	// Rpc is the implementation of the provider.
-	Rpc Rpc
+	// The RPC is invoked by iTerm2 to get the title of a Session.
+	RPC RPC
 }
 
-// ContextMenuProvider add an item to iTerm2's context menu; selecting the menu item causes the Rpc to be invoked.
+// ContextMenuProvider add an item to iTerm2's context menu; selecting the menu item causes the RPC to be invoked.
 type ContextMenuProvider struct {
 	// DisplayName is the menu item's name.
 	DisplayName string
@@ -89,27 +94,28 @@ type ContextMenuProvider struct {
 	// Identifier is the unique identifier for the provider. Use reverse domain name notation.
 	Identifier string
 
-	// Rpc is invoked when the user selects the menu item; the return value is ignored.
-	Rpc Rpc
+	// The RPC is invoked when the user selects the menu item; the return value is ignored.
+	RPC RPC
 }
 
-// RpcInvocation contains all the arguments of the current invocation of a RpcFunc.
-type RpcInvocation struct {
+// Invocation contains all the arguments of the current invocation of a RPC's Function.
+type Invocation struct {
 	requestId string
-	conn      *Connection
+	conn      *itermctl.Connection
 	name      string
 	args      map[string]string
 
 	statusBarComponentIdentifier string
 }
 
-// Name gives the name of used by iTerm2 to invoke this callback's parent Rpc.
-func (inv *RpcInvocation) Name() string {
+// Name gives the name of used by iTerm2 to invoke this callback's parent RPC.
+func (inv *Invocation) Name() string {
 	return inv.name
 }
 
-// Args unmarshalls the invocation arguments into the given *struct, usually the same one used as the Rpc's arguments.
-func (inv *RpcInvocation) Args(target interface{}) error {
+// Args unmarshalls the invocation arguments into the given *struct, usually (but not necessarily) the same one used to
+// define the RPC's arguments upon registration.
+func (inv *Invocation) Args(target interface{}) error {
 	targetValue := reflect.ValueOf(target)
 	if targetValue.Kind() == reflect.Ptr {
 		targetValue = targetValue.Elem()
@@ -159,10 +165,10 @@ func (inv *RpcInvocation) Args(target interface{}) error {
 	return nil
 }
 
-// Knobs unmarshalls the invocation's knobs into the given *struct, usually the same one used as the
-// StatusBarComponent's knobs. Returns ErrNoKnobs when the 'knobs' argument is not found in this invocation (which
-// usually means the Rpc was not registered as a StatusBarComponent).
-func (inv *RpcInvocation) Knobs(target interface{}) error {
+// Knobs unmarshalls the invocation's knobs into the given *struct, usually the same one used to define the
+// StatusBarComponent's knobs upon registration. Returns ErrNoKnobs when the 'knobs' argument is not found in this
+// invocation (which usually means the RPC was not registered as a StatusBarComponent).
+func (inv *Invocation) Knobs(target interface{}) error {
 	knobs, ok := inv.args["knobs"]
 	if !ok {
 		return ErrNoKnobs
@@ -175,10 +181,17 @@ func (inv *RpcInvocation) Knobs(target interface{}) error {
 	return nil
 }
 
-func (inv *RpcInvocation) OpenPopover(html string, width, height int32) error {
+// OpenPopover opens a window of the given size connected to a StatusBarComponent to show the given HTML content.
+// Does nothing and returns a nil error when this is not a StatusBarComponent's Invocation.
+func (inv *Invocation) OpenPopover(html string, width, height int32) error {
+	if inv.statusBarComponentIdentifier == "" {
+		return nil
+	}
+
 	args := ClickArgs{}
+
 	if err := inv.Args(&args); err != nil {
-		return fmt.Errorf("popover: can't get session ID: %w", err)
+		return fmt.Errorf("open popover: can't get session ID: %w", err)
 	}
 
 	msg := &iterm2.ClientOriginatedMessage{
@@ -200,12 +213,12 @@ func (inv *RpcInvocation) OpenPopover(html string, width, height int32) error {
 	}
 
 	if err := inv.conn.Send(msg); err != nil {
-		return fmt.Errorf("popover: %w", err)
+		return fmt.Errorf("open popover: %w", err)
 	}
 	return nil
 }
 
-func acceptRpc(rpc Rpc) AcceptFunc {
+func acceptFunctionInvocation(rpc RPC) itermctl.AcceptFunc {
 	return func(msg *iterm2.ServerOriginatedMessage) bool {
 		if notification := msg.GetNotification(); notification != nil {
 			if rpcNotification := notification.GetServerOriginatedRpcNotification(); rpcNotification != nil {
@@ -218,11 +231,10 @@ func acceptRpc(rpc Rpc) AcceptFunc {
 	}
 }
 
-// RegisterRpc registers the Rpc, invokes its callback when requested by iTerm2 and writes back to iTerm2 the callback's
-// return value or return error. Registration lasts until the context is canceled, or the underlying connection is
-// closed.
+// Register registers the RPC with iTerm2, invokes it when requested and writes back the return value (or error).
+// Registration lasts until the context is canceled, or the underlying connection is closed.
 // See https://www.iterm2.com/python-api/registration.html.
-func (conn *Connection) RegisterRpc(ctx context.Context, rpc Rpc) error {
+func Register(ctx context.Context, conn *itermctl.Connection, rpc RPC) error {
 	role := iterm2.RPCRegistrationRequest_GENERIC
 
 	req := newRegistrationRequest(role, rpc)
@@ -233,7 +245,7 @@ func (conn *Connection) RegisterRpc(ctx context.Context, rpc Rpc) error {
 	}
 
 	recv.SetName(fmt.Sprintf("receive rpc: %s", rpc.Name))
-	recv.SetAcceptFunc(acceptRpc(rpc))
+	recv.SetAcceptFunc(acceptFunctionInvocation(rpc))
 
 	go func() {
 		for msg := range recv.Ch() {
@@ -249,7 +261,7 @@ func (conn *Connection) RegisterRpc(ctx context.Context, rpc Rpc) error {
 // RegisterStatusBarComponent registers a Status Bar Component. Registration lasts until the context is canceled or
 // the connection is closed.
 // See https://www.iterm2.com/python-api/registration.html#iterm2.registration.StatusBarRPC.
-func (conn *Connection) RegisterStatusBarComponent(ctx context.Context, cmp StatusBarComponent) error {
+func RegisterStatusBarComponent(ctx context.Context, conn *itermctl.Connection, cmp StatusBarComponent) error {
 	var cadence *float32
 	knobs := "knobs"
 
@@ -257,7 +269,7 @@ func (conn *Connection) RegisterStatusBarComponent(ctx context.Context, cmp Stat
 		cadence = &cmp.UpdateCadence
 	}
 
-	req := newRegistrationRequest(iterm2.RPCRegistrationRequest_STATUS_BAR_COMPONENT, cmp.Rpc)
+	req := newRegistrationRequest(iterm2.RPCRegistrationRequest_STATUS_BAR_COMPONENT, cmp.RPC)
 
 	args := req.GetRpcRegistrationRequest().GetArguments()
 	args = append(args, &iterm2.RPCRegistrationRequest_RPCArgumentSignature{Name: &knobs})
@@ -280,20 +292,20 @@ func (conn *Connection) RegisterStatusBarComponent(ctx context.Context, cmp Stat
 		return fmt.Errorf("register status bar component: %w", err)
 	}
 
-	recv.SetName(fmt.Sprintf("receive SBC %s, rpc: %s", cmp.Identifier, cmp.Rpc.Name))
-	recv.SetAcceptFunc(acceptRpc(cmp.Rpc))
+	recv.SetName(fmt.Sprintf("receive SBC %s, rpc: %s", cmp.Identifier, cmp.RPC.Name))
+	recv.SetAcceptFunc(acceptFunctionInvocation(cmp.RPC))
 
 	go func() {
 		for msg := range recv.Ch() {
 			rpcNotification := msg.GetNotification().GetServerOriginatedRpcNotification()
 			args := getInvocationArguments(ctx, conn, rpcNotification)
 			args.statusBarComponentIdentifier = cmp.Identifier
-			invoke(conn, cmp.Rpc, args)
+			invoke(conn, cmp.RPC, args)
 		}
 	}()
 
 	if cmp.OnClick != nil {
-		if err := conn.registerClickHandler(ctx, cmp); err != nil {
+		if err := registerClickHandler(ctx, conn, cmp); err != nil {
 			return err
 		}
 	}
@@ -301,17 +313,17 @@ func (conn *Connection) RegisterStatusBarComponent(ctx context.Context, cmp Stat
 	return nil
 }
 
-func (conn *Connection) registerClickHandler(ctx context.Context, cmp StatusBarComponent) error {
-	clickRpc := Rpc{
+func registerClickHandler(ctx context.Context, conn *itermctl.Connection, cmp StatusBarComponent) error {
+	clickRpc := RPC{
 		Name: fmt.Sprintf("__%s__on_click",
 			strings.Replace(strings.Replace(cmp.Identifier, ".", "_", -1), "-", "_", -1)),
-		Args: ClickArgs{},
-		F:    cmp.OnClick,
+		Args:     ClickArgs{},
+		Function: cmp.OnClick,
 	}
 
 	ctx = context.WithValue(ctx, statusBarComponentIdentifierValueKey("identifier"), cmp.Identifier)
 
-	if err := conn.RegisterRpc(ctx, clickRpc); err != nil {
+	if err := Register(ctx, conn, clickRpc); err != nil {
 		return fmt.Errorf("register click handler: %w", err)
 	}
 	return nil
@@ -319,8 +331,8 @@ func (conn *Connection) registerClickHandler(ctx context.Context, cmp StatusBarC
 
 // RegisterContextMenuProvider registers a ContextMenuProvider for sessions. Registration lasts until the context is
 // canceled or the connection shuts down.
-func (conn *Connection) RegisterContextMenuProvider(ctx context.Context, cm ContextMenuProvider) error {
-	req := newRegistrationRequest(iterm2.RPCRegistrationRequest_CONTEXT_MENU, cm.Rpc)
+func RegisterContextMenuProvider(ctx context.Context, conn *itermctl.Connection, cm ContextMenuProvider) error {
+	req := newRegistrationRequest(iterm2.RPCRegistrationRequest_CONTEXT_MENU, cm.RPC)
 
 	req.GetRpcRegistrationRequest().RoleSpecificAttributes = &iterm2.RPCRegistrationRequest_ContextMenuAttributes_{
 		ContextMenuAttributes: &iterm2.RPCRegistrationRequest_ContextMenuAttributes{
@@ -334,14 +346,14 @@ func (conn *Connection) RegisterContextMenuProvider(ctx context.Context, cm Cont
 		return fmt.Errorf("register Context Menu Provider: %s", err)
 	}
 
-	recv.SetName(fmt.Sprintf("receive Context Menu Provider %s, RPC: %s", cm.Identifier, cm.Rpc.Name))
-	recv.SetAcceptFunc(acceptRpc(cm.Rpc))
+	recv.SetName(fmt.Sprintf("receive Context Menu Provider %s, RPC: %s", cm.Identifier, cm.RPC.Name))
+	recv.SetAcceptFunc(acceptFunctionInvocation(cm.RPC))
 
 	go func() {
 		for msg := range recv.Ch() {
 			rpcNotification := msg.GetNotification().GetServerOriginatedRpcNotification()
 			args := getInvocationArguments(ctx, conn, rpcNotification)
-			invoke(conn, cm.Rpc, args)
+			invoke(conn, cm.RPC, args)
 		}
 	}()
 
@@ -351,8 +363,8 @@ func (conn *Connection) RegisterContextMenuProvider(ctx context.Context, cm Cont
 // RegisterSessionTitleProvider registers a TitleProvider for sessions. Registration lasts until the context is canceled
 // or the connection is shut down.
 // See https://www.iterm2.com/python-api/registration.html#iterm2.registration.TitleProviderRPC.
-func (conn *Connection) RegisterSessionTitleProvider(ctx context.Context, tp TitleProvider) error {
-	req := newRegistrationRequest(iterm2.RPCRegistrationRequest_SESSION_TITLE, tp.Rpc)
+func RegisterSessionTitleProvider(ctx context.Context, conn *itermctl.Connection, tp TitleProvider) error {
+	req := newRegistrationRequest(iterm2.RPCRegistrationRequest_SESSION_TITLE, tp.RPC)
 
 	req.GetRpcRegistrationRequest().RoleSpecificAttributes = &iterm2.RPCRegistrationRequest_SessionTitleAttributes_{
 		SessionTitleAttributes: &iterm2.RPCRegistrationRequest_SessionTitleAttributes{
@@ -365,21 +377,21 @@ func (conn *Connection) RegisterSessionTitleProvider(ctx context.Context, tp Tit
 		return fmt.Errorf("register title provider: %s", err)
 	}
 
-	recv.SetName(fmt.Sprintf("receive Title Provider %s, RPC: %s", tp.Identifier, tp.Rpc.Name))
-	recv.SetAcceptFunc(acceptRpc(tp.Rpc))
+	recv.SetName(fmt.Sprintf("receive Title Provider %s, RPC: %s", tp.Identifier, tp.RPC.Name))
+	recv.SetAcceptFunc(acceptFunctionInvocation(tp.RPC))
 
 	go func() {
 		for msg := range recv.Ch() {
 			rpcNotification := msg.GetNotification().GetServerOriginatedRpcNotification()
 			args := getInvocationArguments(ctx, conn, rpcNotification)
-			invoke(conn, tp.Rpc, args)
+			invoke(conn, tp.RPC, args)
 		}
 	}()
 
 	return nil
 }
 
-func newRegistrationRequest(role iterm2.RPCRegistrationRequest_Role, rpc Rpc) *iterm2.NotificationRequest {
+func newRegistrationRequest(role iterm2.RPCRegistrationRequest_Role, rpc RPC) *iterm2.NotificationRequest {
 	subscribe := true
 	notificationType := iterm2.NotificationType_NOTIFY_ON_SERVER_ORIGINATED_RPC
 
@@ -470,14 +482,14 @@ func getFirstNamedTag(tag reflect.StructTag, tagNames ...string) (string, error)
 	return "", fmt.Errorf("none of the tags has an usable value: %s", strings.Join(tagNames, ", "))
 }
 
-func getInvocationArguments(ctx context.Context, conn *Connection, rpcNotification *iterm2.ServerOriginatedRPCNotification) *RpcInvocation {
+func getInvocationArguments(ctx context.Context, conn *itermctl.Connection, rpcNotification *iterm2.ServerOriginatedRPCNotification) *Invocation {
 	argsMap := make(map[string]string)
 
 	for _, arg := range rpcNotification.GetRpc().GetArguments() {
 		argsMap[arg.GetName()] = arg.GetJsonValue()
 	}
 
-	invocation := &RpcInvocation{
+	invocation := &Invocation{
 		conn:      conn,
 		name:      rpcNotification.GetRpc().GetName(),
 		args:      argsMap,
@@ -529,8 +541,8 @@ func getArgs(v interface{}) (arguments []*iterm2.RPCRegistrationRequest_RPCArgum
 	return
 }
 
-func invoke(conn *Connection, rpc Rpc, args *RpcInvocation) {
-	returnValue, returnErr := rpc.F(args)
+func invoke(conn *itermctl.Connection, f RPC, args *Invocation) {
+	returnValue, returnErr := f.Function(args)
 
 	var result *iterm2.ServerOriginatedRPCResultRequest
 
@@ -558,6 +570,6 @@ func invoke(conn *Connection, rpc Rpc, args *RpcInvocation) {
 
 	err := conn.Send(msg)
 	if err != nil {
-		logrus.Errorf("RpcFunc send: %s", err)
+		logrus.Errorf("RPC send: %s", err)
 	}
 }

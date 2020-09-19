@@ -13,7 +13,7 @@ jobs:
       - name: Download and start iTerm2
         run: |
           tmp_zip=$(mktemp -u iterm.zip.XXXXXXX)
-          curl https://iterm2.com/downloads/beta/iTerm2-3_4_0beta4.zip > "$tmp_zip"
+          curl https://iterm2.com/downloads/beta/iTerm2-3_4_2beta3.zip > "$tmp_zip"
           unzip "$tmp_zip"
           mv iTerm.app /Applications/iTerm.app
 

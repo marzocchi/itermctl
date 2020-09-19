@@ -6,7 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"mrz.io/itermctl/pkg/itermctl"
+	"mrz.io/itermctl/pkg/itermctl/rpc"
 	"testing"
 )
 
@@ -16,15 +16,13 @@ func TestRegisterCallback(t *testing.T) {
 
 	returnValue := "foo"
 
-	rpc := itermctl.Rpc{
+	if err := rpc.Register(ctx, conn, rpc.RPC{
 		Name: "test_callback_1",
 		Args: nil,
-		F: func(args *itermctl.RpcInvocation) (interface{}, error) {
+		Function: func(args *rpc.Invocation) (interface{}, error) {
 			return returnValue, nil
 		},
-	}
-
-	if err := conn.RegisterRpc(ctx, rpc); err != nil {
+	}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -45,15 +43,13 @@ func TestRegisterCallback_WithError(t *testing.T) {
 
 	errorString := "something went wrong in the callback"
 
-	rpc := itermctl.Rpc{
+	if err := rpc.Register(ctx, conn, rpc.RPC{
 		Name: "test_callback_2",
 		Args: nil,
-		F: func(args *itermctl.RpcInvocation) (interface{}, error) {
+		Function: func(args *rpc.Invocation) (interface{}, error) {
 			return nil, errors.New(errorString)
 		},
-	}
-
-	if err := conn.RegisterRpc(ctx, rpc); err != nil {
+	}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -79,10 +75,10 @@ func TestRegisterCallback_WithArguments(t *testing.T) {
 		Foo string
 	}
 
-	rpc := itermctl.Rpc{
+	if err := rpc.Register(ctx, conn, rpc.RPC{
 		Name: "test_callback_3",
 		Args: args,
-		F: func(invocation *itermctl.RpcInvocation) (interface{}, error) {
+		Function: func(invocation *rpc.Invocation) (interface{}, error) {
 			err := invocation.Args(&args)
 			if err != nil {
 				return nil, err
@@ -91,9 +87,7 @@ func TestRegisterCallback_WithArguments(t *testing.T) {
 			callbackReturnValue = args.Foo
 			return callbackReturnValue, nil
 		},
-	}
-
-	if err := conn.RegisterRpc(ctx, rpc); err != nil {
+	}); err != nil {
 		t.Fatal(err)
 	}
 

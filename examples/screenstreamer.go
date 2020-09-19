@@ -28,12 +28,12 @@ func main() {
 		conn.Close()
 	}()
 
-	session, err := app.ActiveSession()
-	if err != nil {
-		panic(err)
+	session := app.ActiveSession()
+	if session == nil {
+		panic("no session!")
 	}
 
-	screenUpdates, err := conn.MonitorScreenUpdates(context.Background(), session.Id())
+	screenUpdates, err := itermctl.MonitorScreenUpdates(context.Background(), conn, session.Id())
 	if err != nil {
 		panic(err)
 	}
@@ -42,7 +42,7 @@ func main() {
 		var lastOffset int32
 
 		for range screenUpdates {
-			contents, err := session.ScreenContents()
+			contents, err := session.ScreenContents(nil)
 			if err != nil {
 				panic(err)
 			}

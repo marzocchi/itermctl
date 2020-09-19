@@ -20,7 +20,7 @@ func TestCustomControlSequenceMonitor(t *testing.T) {
 	defer cancel()
 
 	re := regexp.MustCompile("test-sequence")
-	notifications, err := conn.MonitorCustomControlSequences(ctx, identity, re, itermctl.AllSessions)
+	notifications, err := itermctl.MonitorCustomControlSequences(ctx, conn, identity, re, itermctl.AllSessions)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -31,16 +31,16 @@ func TestCustomControlSequenceMonitor(t *testing.T) {
 	}
 
 	defer func() {
-		err = app.CloseWindow(true, testWindowResp.GetWindowId())
+		err = app.CloseTerminalWindow(true, testWindowResp.GetWindowId())
 		if err != nil {
 			t.Fatal(err)
 		}
 	}()
 
 	sessionId := testWindowResp.GetSessionId()
-	session, err := app.Session(sessionId)
-	if err != nil {
-		t.Fatal(err)
+	session := app.Session(sessionId)
+	if session == nil {
+		t.Fatal("no session")
 	}
 
 	tempFile, err := ioutil.TempFile("", "*-custom_control_test")

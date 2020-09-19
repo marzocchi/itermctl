@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"mrz.io/itermctl/pkg/itermctl"
 	"mrz.io/itermctl/pkg/itermctl/internal/test"
+	"mrz.io/itermctl/pkg/itermctl/rpc"
 	"testing"
 	"time"
 )
@@ -18,16 +19,16 @@ func TestConnection_InvokeFunction(t *testing.T) {
 
 	args := A{Foo: "bar"}
 
-	rpc := itermctl.Rpc{
+	if err := rpc.Register(context.Background(), conn, rpc.RPC{
 		Name: "rpc_test_succeeding_func",
 		Args: args,
-		F: func(invocation *itermctl.RpcInvocation) (interface{}, error) {
+		Function: func(invocation *rpc.Invocation) (interface{}, error) {
 			invocation.Args(&args)
 			return args.Foo, nil
 		},
+	}); err != nil {
+		t.Fatal(err)
 	}
-
-	conn.RegisterRpc(context.Background(), rpc)
 
 	var result string
 	err := conn.InvokeFunction(fmt.Sprintf("rpc_test_succeeding_func(%s: %q)", "foo", args.Foo), &result)
@@ -51,17 +52,15 @@ func TestConnection_InvokeFunction_WithError(t *testing.T) {
 		<-time.After(1 * time.Second)
 	}()
 
-	errorString := "error from the RpcFunc function"
+	errorString := "error from the RPC function"
 
-	rpc := itermctl.Rpc{
+	if err := rpc.Register(context.Background(), conn, rpc.RPC{
 		Name: "rpc_test_failing_func",
 		Args: nil,
-		F: func(args *itermctl.RpcInvocation) (interface{}, error) {
+		Function: func(args *rpc.Invocation) (interface{}, error) {
 			return nil, fmt.Errorf(errorString)
 		},
-	}
-
-	if err := conn.RegisterRpc(context.Background(), rpc); err != nil {
+	}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -98,7 +97,7 @@ func TestApp_CreateTab_CloseTab(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = app.CloseWindow(true, resp.GetWindowId())
+	err = app.CloseTerminalWindow(true, resp.GetWindowId())
 	if err != nil {
 		t.Fatal(err)
 	}

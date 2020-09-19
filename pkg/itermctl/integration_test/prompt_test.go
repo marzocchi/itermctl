@@ -4,7 +4,8 @@ package integration_test
 
 import (
 	"context"
-	iterm2 "mrz.io/itermctl/pkg/itermctl/proto"
+	"mrz.io/itermctl/pkg/itermctl"
+	"mrz.io/itermctl/pkg/itermctl/iterm2"
 	"reflect"
 	"testing"
 	"time"
@@ -20,20 +21,20 @@ func TestPromptMonitor(t *testing.T) {
 	}
 
 	defer func() {
-		err = app.CloseWindow(true, testWindowResp.GetWindowId())
+		err = app.CloseTerminalWindow(true, testWindowResp.GetWindowId())
 		if err != nil {
 			t.Fatal(err)
 		}
 	}()
 
-	promptNotifications, err := conn.MonitorPrompts(ctx, testWindowResp.GetSessionId())
+	promptNotifications, err := itermctl.MonitorPrompts(ctx, conn, testWindowResp.GetSessionId())
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	session, err := app.Session(testWindowResp.GetSessionId())
-	if err != nil {
-		t.Fatal(err)
+	session := app.Session(testWindowResp.GetSessionId())
+	if session == nil {
+		t.Fatalf("no session: %s", testWindowResp.GetSessionId())
 	}
 
 	if err := session.SendText("ls\n\n", false); err != nil {

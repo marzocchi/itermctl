@@ -17,7 +17,7 @@ func main() {
 		panic(err)
 	}
 
-	windowId, err := app.ActiveWindowId()
+	windowId, err := app.ActiveTerminalWindowId()
 	if err != nil {
 		panic(err)
 	}

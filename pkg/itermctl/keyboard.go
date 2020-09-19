@@ -2,12 +2,12 @@ package itermctl
 
 import (
 	"context"
-	iterm2 "mrz.io/itermctl/pkg/itermctl/proto"
+	"mrz.io/itermctl/pkg/itermctl/iterm2"
 )
 
 // MonitorKeystrokes subscribes to KeystrokeNotification and writes each one to the returned channel, until the context
 // is canceled or the Connection is closed.
-func (conn *Connection) MonitorKeystrokes(ctx context.Context, sessionId string) (<-chan *iterm2.KeystrokeNotification, error) {
+func MonitorKeystrokes(ctx context.Context, conn *Connection, sessionId string) (<-chan *iterm2.KeystrokeNotification, error) {
 	if sessionId == "" {
 		sessionId = AllSessions
 	}

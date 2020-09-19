@@ -1,12 +1,13 @@
-package itermctl
+package rpc
 
 import (
 	"context"
 	"fmt"
+	"mrz.io/itermctl/pkg/itermctl"
 )
 
-func ExampleConnection_RegisterRpc() {
-	conn, err := GetCredentialsAndConnect("itermctl_docs_RegisterRpc_example", true)
+func ExampleRegisterRpc() {
+	conn, err := itermctl.GetCredentialsAndConnect("itermctl_docs_RegisterRpc_example", true)
 	if err != nil {
 		panic(err)
 	}
@@ -18,14 +19,14 @@ func ExampleConnection_RegisterRpc() {
 		StringArg string `arg.name:"string_arg" arg.ref:"id"`
 	}
 
-	rpc := Rpc{
+	rpc := RPC{
 		Name: "itermctl_rpc_example",
 		Args: Args{
 			BoolArg:   true,
 			StringArg: "some string",
 			NumberArg: 42.0,
 		},
-		F: func(invocation *RpcInvocation) (interface{}, error) {
+		Function: func(invocation *Invocation) (interface{}, error) {
 			args := Args{}
 			if err := invocation.Args(args); err != nil {
 				return nil, err
@@ -36,13 +37,13 @@ func ExampleConnection_RegisterRpc() {
 		},
 	}
 
-	if err := conn.RegisterRpc(context.Background(), rpc); err != nil {
+	if err := Register(context.Background(), conn, rpc); err != nil {
 		panic(err)
 	}
 }
 
-func ExampleConnection_RegisterStatusBarComponent() {
-	conn, err := GetCredentialsAndConnect("itermctl_docs_RegisterStatusBarComponent_example", true)
+func ExampleRegisterStatusBarComponent() {
+	conn, err := itermctl.GetCredentialsAndConnect("itermctl_docs_RegisterStatusBarComponent_example", true)
 	if err != nil {
 		panic(err)
 	}
@@ -59,9 +60,9 @@ func ExampleConnection_RegisterStatusBarComponent() {
 		Exemplar:         "[component]",
 		UpdateCadence:    0,
 		Identifier:       "io.mrz.itermctl.example.component",
-		Rpc: Rpc{
+		RPC: RPC{
 			Name: "itermctl_component_example",
-			F: func(invocation *RpcInvocation) (interface{}, error) {
+			Function: func(invocation *Invocation) (interface{}, error) {
 				knobs := Knobs{}
 
 				if err := invocation.Knobs(&knobs); err != nil {
@@ -79,13 +80,13 @@ func ExampleConnection_RegisterStatusBarComponent() {
 		},
 	}
 
-	if err := conn.RegisterStatusBarComponent(context.Background(), cmp); err != nil {
+	if err := RegisterStatusBarComponent(context.Background(), conn, cmp); err != nil {
 		panic(err)
 	}
 }
 
-func ExampleConnection_RegisterSessionTitleProvider() {
-	conn, err := GetCredentialsAndConnect("itermctl_docs_RegisterSessionTitleProvider_example", true)
+func ExampleRegisterSessionTitleProvider() {
+	conn, err := itermctl.GetCredentialsAndConnect("itermctl_docs_RegisterSessionTitleProvider_example", true)
 	if err != nil {
 		panic(err)
 	}
@@ -97,10 +98,10 @@ func ExampleConnection_RegisterSessionTitleProvider() {
 	tp := TitleProvider{
 		DisplayName: "Title Provider",
 		Identifier:  "io.mrz.itermctl.example.titleprovider",
-		Rpc: Rpc{
+		RPC: RPC{
 			Name: "itermctl_title_provider_example",
 			Args: args,
-			F: func(invocation *RpcInvocation) (interface{}, error) {
+			Function: func(invocation *Invocation) (interface{}, error) {
 				err := invocation.Args(&args)
 				if err != nil {
 					return nil, err
@@ -111,7 +112,7 @@ func ExampleConnection_RegisterSessionTitleProvider() {
 		},
 	}
 
-	if err := conn.RegisterSessionTitleProvider(context.Background(), tp); err != nil {
+	if err := RegisterSessionTitleProvider(context.Background(), conn, tp); err != nil {
 		panic(err)
 	}
 }
