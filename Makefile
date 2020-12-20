@@ -1,9 +1,9 @@
-.PHONY: integration_test prepare_environment prepare_profile get_proto
+.PHONY: integration_test prepare_environment prepare_profile update_proto
 
 ITERM_DIR="$(HOME)/Library/Application Support/iTerm2"
 
-bin/itermctl: Makefile cmd/itermctl/main.go $(shell find pkg -name "*.go" -or -name "*.proto")
-	go build -race -o bin/itermctl cmd/itermctl/main.go
+integration_test: update_proto prepare_environment prepare_profile
+	go test -race -count=1 -v -tags test_with_iterm mrz.io/itermctl/...
 
 prepare_environment:
 	mkdir $(ITERM_DIR) || true
@@ -23,14 +23,8 @@ prepare_profile:
 	./scripts/gen-profile.sh "$(shell pwd)/scripts/zsh-with-iterm-integration.sh /tmp/iterm2-shell-integration-for-itermctl-test.zsh" \
 		> $(ITERM_DIR)/DynamicProfiles/itermctl-test-profile.json
 
-integration_test: prepare_environment prepare_profile
-	go test -race -count=1 -v -tags test_with_iterm mrz.io/itermctl/pkg/...
-
-get_proto:
-	rm pkg/itermctl/proto/api.proto || true
-	curl -L https://raw.githubusercontent.com/gnachman/iTerm2/master/proto/api.proto > pkg/itermctl/proto/api.proto
-
-pkg/itermctl/proto/api.pb.go: get_proto pkg/itermctl/proto/api.proto
-	rm pkg/itermctl/proto/api.pb.go || true
-	protoc --go_out=. pkg/itermctl/proto/api.proto
+update_proto:
+	rm proto/api.proto || true
+	curl -L https://raw.githubusercontent.com/gnachman/iTerm2/master/proto/api.proto > iterm2/api.proto
+	go generate
 

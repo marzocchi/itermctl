@@ -6,7 +6,7 @@ if [ $# -lt 1 ]; then
 fi
 
 iterm_shell_integration_script="$1"
-dotdir=$(/usr/bin/mktemp -d itermctl-test-zdotdir.XXXXXXXX)
+dotdir=$(/usr/bin/mktemp -d -t itermctl-test-zdotdir)
 
 cat > "$dotdir/.zshrc" <<EOF
 source $iterm_shell_integration_script

@@ -3,8 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
-	"mrz.io/itermctl/pkg/itermctl"
-	iterm2 "mrz.io/itermctl/pkg/itermctl/proto"
+	"mrz.io/itermctl"
+	"mrz.io/itermctl/iterm2"
 	"os"
 	"os/signal"
 	"syscall"
@@ -24,18 +24,20 @@ func main() {
 		conn.Close()
 	}()
 
-	terminatedSessions, err := conn.MonitorSessionsTermination(context.Background())
+	terminatedSessions, err := itermctl.MonitorSessionsTermination(context.Background(), conn)
 	if err != nil {
 		panic(err)
 	}
 
-	newSessions, err := conn.MonitorNewSessions(context.Background())
+	newSessions, err := itermctl.MonitorNewSessions(context.Background(), conn)
 	if err != nil {
 		panic(err)
 	}
 
-	prompts, err := conn.MonitorPrompts(
+	prompts, err := itermctl.MonitorPrompts(
 		context.Background(),
+		conn,
+		"",
 		iterm2.PromptMonitorMode_COMMAND_START,
 		iterm2.PromptMonitorMode_COMMAND_END,
 		iterm2.PromptMonitorMode_PROMPT,

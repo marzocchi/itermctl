@@ -3,7 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
-	"mrz.io/itermctl/pkg/itermctl"
+	"mrz.io/itermctl"
+	"mrz.io/itermctl/rpc"
 	"os"
 	"os/signal"
 	"syscall"
@@ -27,13 +28,13 @@ func main() {
 		SessionId string `arg.name:"session_id" arg.ref:"id"`
 	}
 
-	tp := itermctl.TitleProvider{
+	tp := rpc.TitleProvider{
 		DisplayName: "Example Title Provider",
 		Identifier:  "io.mrz.itermctl.example.title-provider",
-		Rpc: itermctl.Rpc{
+		RPC: rpc.RPC{
 			Name: "itermctl_example_title_provider",
 			Args: args,
-			F: func(invocation *itermctl.RpcInvocation) (interface{}, error) {
+			Function: func(invocation *rpc.Invocation) (interface{}, error) {
 				err := invocation.Args(&args)
 				if err != nil {
 					return nil, err
@@ -44,7 +45,7 @@ func main() {
 		},
 	}
 
-	err = conn.RegisterSessionTitleProvider(context.Background(), tp)
+	err = rpc.RegisterSessionTitleProvider(context.Background(), conn, tp)
 	if err != nil {
 		panic(err)
 	}

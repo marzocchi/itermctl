@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"mrz.io/itermctl/pkg/itermctl"
+	"mrz.io/itermctl"
 )
 
 func main() {
@@ -17,7 +17,7 @@ func main() {
 		panic(err)
 	}
 
-	windowId, err := app.ActiveWindowId()
+	windowId, err := app.ActiveTerminalWindowId()
 	if err != nil {
 		panic(err)
 	}

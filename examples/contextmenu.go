@@ -3,7 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
-	"mrz.io/itermctl/pkg/itermctl"
+	"mrz.io/itermctl"
+	"mrz.io/itermctl/rpc"
 	"os"
 	"os/signal"
 	"syscall"
@@ -11,6 +12,11 @@ import (
 
 func main() {
 	conn, err := itermctl.GetCredentialsAndConnect("itermctl_context_menu_provider_example", true)
+	if err != nil {
+		panic(err)
+	}
+
+	app, err := itermctl.NewApp(conn)
 	if err != nil {
 		panic(err)
 	}
@@ -27,26 +33,30 @@ func main() {
 		SessionId string `arg.name:"session_id" arg.ref:"id"`
 	}
 
-	cm := itermctl.ContextMenuProvider{
+	cm := rpc.ContextMenuProvider{
 		DisplayName: "Example Context Menu Provider",
 		Identifier:  "io.mrz.itermctl.example.context-menu-provider",
-		Rpc: itermctl.Rpc{
+		RPC: rpc.RPC{
 			Name: "itermctl_example_context_menu_provider",
 			Args: args,
-			F: func(invocation *itermctl.RpcInvocation) (interface{}, error) {
+			Function: func(invocation *rpc.Invocation) (interface{}, error) {
 				err := invocation.Args(&args)
 				if err != nil {
 					return nil, err
 				}
 
-				fmt.Printf("context menu selected in session %s\n", args.SessionId)
+				text, err := app.Session(args.SessionId).SelectedText()
+				if err != nil {
+					panic(err)
+				}
 
+				fmt.Printf("selected text:\n---\n%s\n---\n", text)
 				return nil, nil
 			},
 		},
 	}
 
-	err = conn.RegisterContextMenuProvider(context.Background(), cm)
+	err = rpc.RegisterContextMenuProvider(context.Background(), conn, cm)
 	if err != nil {
 		panic(err)
 	}

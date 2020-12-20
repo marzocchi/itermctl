@@ -3,7 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
-	"mrz.io/itermctl/pkg/itermctl"
+	"mrz.io/itermctl"
+	"mrz.io/itermctl/rpc"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -25,11 +26,12 @@ func main() {
 		conn.Close()
 	}()
 
-	err = conn.RegisterRpc(context.Background(),
-		itermctl.Rpc{
-			Name: "itermctl_example_say",
-			Args: SayArgs{Message: "hello, world!", SessionId: "id"},
-			F:    Say,
+	err = rpc.Register(context.Background(),
+		conn,
+		rpc.RPC{
+			Name:     "itermctl_example_say",
+			Args:     SayArgs{Message: "hello, world!", SessionId: "id"},
+			Function: Say,
 		})
 
 	if err != nil {
@@ -44,7 +46,7 @@ type SayArgs struct {
 	SessionId string `arg.ref:"id"`
 }
 
-func Say(invocation *itermctl.RpcInvocation) (interface{}, error) {
+func Say(invocation *rpc.Invocation) (interface{}, error) {
 	args := SayArgs{}
 	err := invocation.Args(&args)
 	if err != nil {
