@@ -3,8 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
-	"mrz.io/itermctl/pkg/itermctl"
-	"mrz.io/itermctl/pkg/itermctl/rpc"
+	"mrz.io/itermctl"
+	"mrz.io/itermctl/rpc"
 	"os"
 	"os/exec"
 	"os/signal"

@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"mrz.io/itermctl/pkg/itermctl"
+	"mrz.io/itermctl"
 )
 
 func main() {

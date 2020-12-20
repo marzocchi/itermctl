@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
-	"mrz.io/itermctl/pkg/itermctl"
+	"mrz.io/itermctl"
 	"os"
 	"os/signal"
 	"syscall"
